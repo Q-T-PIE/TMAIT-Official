@@ -31,7 +31,8 @@ Web app where clients submit traffic-management requests via a form; A.T.O.M (AI
 ## Backlog / Next Tasks
 - P1: Client file attachments on request form (needs object storage integration)
 - P1: Streaming generation progress (SSE) instead of long request wait
-- P1: Include map snapshot image inside exported PDF (currently coordinates table only)
+- P1: Include map snapshot image inside exported PDF ✅ DONE differently — TMM schematic Layout Diagram (SVG) embedded as PNG in PDF
+- **TMM Layout Diagram (2026-06):** New "Layout Diagram" workspace tab — SVG traffic control layout sheet matching BC TMM 2020 conventions: diamond signs with real C-designations, cone taper (LM), buffer (B), hatched work area, downstream taper (LD), sign spacing (A) per TMM Tables A/B by speed, TCP/FAB symbols, legend, title block. Plan JSON extended with `layout` spec. Diagram captured browser-side (svgToPng) and embedded in exported PDF (POST /api/jobs/{id}/export). Tested: iteration_2 — 100% pass.
 - P2: Admin user management UI; feedback/training dashboard page
 - P2: Reject → revise → regenerate loop UX ✅ DONE (rejection feedback + previous plan injected into revision prompt; "Revise & Regenerate" button)
 - P2: Explicit 400 on register with disallowed role (currently coerced to client)
