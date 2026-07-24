@@ -73,6 +73,10 @@ class ReviewIn(BaseModel):
     feedback: Optional[str] = None
 
 
+class ExportIn(BaseModel):
+    diagram_png: Optional[str] = None
+
+
 def set_auth_cookie(response: Response, token: str):
     response.set_cookie("access_token", token, httponly=True, secure=True, samesite="none", max_age=604800, path="/")
 
@@ -209,8 +213,7 @@ async def review_job(job_id: str, data: ReviewIn, user: dict = Depends(get_curre
     return {"ok": True, "status": status}
 
 
-@api.get("/jobs/{job_id}/export")
-async def export_pdf(job_id: str, user: dict = Depends(get_current_user)):
+async def _export(job_id: str, user: dict, diagram_png: Optional[str] = None):
     query = {"id": job_id}
     if user["role"] == "client":
         query["client_id"] = user["id"]
@@ -219,10 +222,27 @@ async def export_pdf(job_id: str, user: dict = Depends(get_current_user)):
         raise HTTPException(status_code=404, detail="Job not found")
     if not job.get("plan"):
         raise HTTPException(status_code=400, detail="No plan to export")
-    pdf = build_plan_pdf(job)
+    png_bytes = None
+    if diagram_png and "," in diagram_png:
+        import base64
+        try:
+            png_bytes = base64.b64decode(diagram_png.split(",", 1)[1])
+        except Exception:
+            png_bytes = None
+    pdf = build_plan_pdf(job, diagram_png=png_bytes)
     fname = f"TMAIT_Plan_{job['title'][:30].replace(' ', '_')}.pdf"
     return RawResponse(content=pdf, media_type="application/pdf",
                        headers={"Content-Disposition": f'attachment; filename="{fname}"'})
+
+
+@api.post("/jobs/{job_id}/export")
+async def export_pdf_post(job_id: str, data: ExportIn, user: dict = Depends(get_current_user)):
+    return await _export(job_id, user, data.diagram_png)
+
+
+@api.get("/jobs/{job_id}/export")
+async def export_pdf(job_id: str, user: dict = Depends(get_current_user)):
+    return await _export(job_id, user)
 
 
 # ---------- Knowledge Base ----------

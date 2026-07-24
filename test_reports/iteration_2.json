@@ -1,0 +1,33 @@
+{
+  "summary": "Frontend-only regression + new-feature test for TMAIT Layout Diagram tab and PDF export with embedded SVG->PNG diagram. All acceptance criteria met. Reviewer login -> open job 67c7cffc (Watermain repair - Lonsdale Ave, pending_review) -> 3 tabs (tab-plan, tab-layout, tab-map) render without errors -> Layout tab shows SchematicDiagram with SVG#layout-svg containing all required elements: TMAIT title, NOT TO SCALE, LEGEND, WORK AREA hatched region, dimension labels (LM = 35 m, B = 30 m, LD = 15 m, A = 40 m) and BC sign designations (C-086-1, C-053, C-018-1A, C-130-R). Export PDF triggered from BOTH tabs via [data-testid=export-pdf-button] downloads valid PDFs (154088 bytes each, %PDF- header, 5 pages, 1 embedded PNG image = the diagram). Hidden export copy #layout-svg-export confirmed present on plan tab and used for browser-side svgToPngDataUrl conversion. Zero console errors/warnings during SVG->PNG conversion. Regression: Leaflet map still renders with 12 markers; Plan Document tab still contains Signage/TMM/Setup content; approve/reject reviewer buttons visible (job status preserved as pending_review; no approve/reject clicked).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/test_reports/downloads/pdf_from_layout.pdf",
+    "/app/test_reports/downloads/pdf_from_plan.pdf",
+    "/app/test_reports/downloads/layout_tab.png"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "svgToPng.js:3 uses btoa(unescape(encodeURIComponent(xml))) - works cross-browser but unescape is deprecated; consider TextEncoder+base64 for future-proofing (non-blocking)",
+    "ActionsPanel.js:36 swallows svgToPng errors silently with empty catch {} - if diagram fails, exportPdf still succeeds without diagram (graceful degradation, but user is not warned). Consider a toast warning when diagram_png ends up null despite job.plan.layout existing.",
+    "Dashboard.js:136 hidden export SVG uses left:-20000 offset - works but takes DOM space and slows initial render for jobs with large layout. Consider only mounting it when export button is hovered/clicked.",
+    "Dashboard.js:135 conditional `job.plan.layout && tab !== 'layout'` correctly avoids duplicate #layout-svg IDs when on the layout tab. Good.",
+    "SchematicDiagram.js:48 supports optional svgId prop - correct pattern to give hidden copy a unique ID (#layout-svg-export). Good."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (frontend-only pass)", "frontend": "100% (all layout diagram + export flows passed)"},
+  "test_credentials": "reviewer@tmait.ca / Review@1234",
+  "seed_data_creation": "Only used existing job 67c7cffc-aee6-4b1a-8e0a-272f786f0b8b (pre-existing pending_review with plan+layout). No new data written. Job status preserved as pending_review per instructions (approve/reject NOT clicked).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Browser-side svgToPngDataUrl conversion + axios blob POST + PDF download all verified end-to-end on Chromium. Both #layout-svg (visible on layout tab) and #layout-svg-export (hidden copy on other tabs) produce valid embedded PNGs in the final PDF. Reviewer approve/reject buttons still show because job remains pending_review. No LLM/generation was triggered.",
+  "rca of the issue": "N/A - no issues found. New feature works as designed."
+}

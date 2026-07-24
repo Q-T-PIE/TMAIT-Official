@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
-import { FileText, MapTrifold } from "@phosphor-icons/react";
+import { FileText, MapTrifold, TrafficCone } from "@phosphor-icons/react";
 import JobsSidebar from "../components/JobsSidebar";
 import RequestForm from "../components/RequestForm";
 import PlanDocument from "../components/PlanDocument";
 import TrafficMap from "../components/TrafficMap";
+import SchematicDiagram from "../components/SchematicDiagram";
 import ActionsPanel from "../components/ActionsPanel";
 import KnowledgeBase from "../components/KnowledgeBase";
 import { useAuth } from "../context/AuthContext";
@@ -119,7 +120,7 @@ export default function Dashboard() {
             {job.plan && !generating && (
               <>
                 <div className="flex border border-black/15 rounded-sm w-fit mb-8 overflow-hidden">
-                  {[["plan", "Plan Document", FileText], ["map", "Map Diagram", MapTrifold]].map(([k, label, Icon]) => (
+                  {[["plan", "Plan Document", FileText], ["layout", "Layout Diagram", TrafficCone], ["map", "Map View", MapTrifold]].map(([k, label, Icon]) => (
                     <button key={k} data-testid={`tab-${k}`} onClick={() => setTab(k)}
                       className={`flex items-center gap-2 px-5 py-2.5 text-xs font-mono uppercase tracking-[0.12em] transition-colors duration-150 ${tab === k ? "bg-[#0A0A0A] text-white" : "text-zinc-600 hover:text-black bg-white"}`}>
                       <Icon size={14} /> {label}
@@ -127,10 +128,15 @@ export default function Dashboard() {
                   ))}
                 </div>
                 <div key={tab} className="animate-fade">
-                  {tab === "plan"
-                    ? <PlanDocument plan={job.plan} editable={isReviewer} onSave={savePlan} />
-                    : <TrafficMap features={job.plan.map_features} />}
+                  {tab === "plan" && <PlanDocument plan={job.plan} editable={isReviewer} onSave={savePlan} />}
+                  {tab === "layout" && <SchematicDiagram plan={job.plan} job={job} />}
+                  {tab === "map" && <TrafficMap features={job.plan.map_features} />}
                 </div>
+                {job.plan.layout && tab !== "layout" && (
+                  <div style={{ position: "absolute", left: -20000, top: 0 }} aria-hidden="true">
+                    <SchematicDiagram plan={job.plan} job={job} svgId="layout-svg-export" />
+                  </div>
+                )}
               </>
             )}
           </div>

@@ -3,6 +3,7 @@ import { Lightning, CheckCircle, XCircle, FilePdf, Cpu } from "@phosphor-icons/r
 import { StatusBadge } from "./StatusBadge";
 import { useAuth } from "../context/AuthContext";
 import api, { apiError } from "../lib/api";
+import { svgToPngDataUrl } from "../lib/svgToPng";
 import { toast } from "sonner";
 
 export default function ActionsPanel({ job, onJobUpdated, generating, onGenerate }) {
@@ -28,7 +29,12 @@ export default function ActionsPanel({ job, onJobUpdated, generating, onGenerate
 
   const exportPdf = async () => {
     try {
-      const res = await api.get(`/jobs/${job.id}/export`, { responseType: "blob" });
+      let diagram_png = null;
+      try {
+        const svgEl = document.getElementById("layout-svg") || document.getElementById("layout-svg-export");
+        if (svgEl) diagram_png = await svgToPngDataUrl(svgEl);
+      } catch {}
+      const res = await api.post(`/jobs/${job.id}/export`, { diagram_png }, { responseType: "blob" });
       const url = URL.createObjectURL(res.data);
       const a = document.createElement("a");
       a.href = url;

@@ -2,14 +2,15 @@ import io
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.units import inch
 from reportlab.lib import colors
+from reportlab.lib.utils import ImageReader
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, ListFlowable, ListItem
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, ListFlowable, ListItem, Image as RLImage, PageBreak
 
 ORANGE = colors.HexColor("#FF5F15")
 DARK = colors.HexColor("#0A0A0A")
 
 
-def build_plan_pdf(job: dict) -> bytes:
+def build_plan_pdf(job: dict, diagram_png: bytes = None) -> bytes:
     plan = job.get("plan") or {}
     buf = io.BytesIO()
     doc = SimpleDocTemplate(buf, pagesize=letter, topMargin=0.7 * inch, bottomMargin=0.7 * inch)
@@ -60,6 +61,19 @@ def build_plan_pdf(job: dict) -> bytes:
         el.append(ListFlowable([ListItem(Paragraph(str(s), body)) for s in steps], bulletType="1"))
 
     section("8. Safety Considerations", plan.get("safety_considerations"))
+
+    if diagram_png:
+        el.append(PageBreak())
+        el.append(Paragraph("Traffic Control Layout — TMM 2020 Schematic", h2))
+        ir = ImageReader(io.BytesIO(diagram_png))
+        iw, ih = ir.getSize()
+        max_w, max_h = 7.0 * inch, 8.6 * inch
+        ratio = min(max_w / iw, max_h / ih)
+        el.append(RLImage(io.BytesIO(diagram_png), width=iw * ratio, height=ih * ratio))
+        lay = plan.get("layout") or {}
+        if lay.get("notes"):
+            el.append(Paragraph(f"NOTE: {lay['notes']}", small))
+        el.append(PageBreak())
 
     cits = plan.get("tmm_citations") or []
     if cits:

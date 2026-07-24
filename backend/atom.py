@@ -26,6 +26,23 @@ You MUST respond with ONLY a valid JSON object (no markdown fences, no commentar
   "setup_steps": ["ordered step-by-step site setup instructions"],
   "safety_considerations": "string - hazards, worker safety, flagger requirements, buffer zones",
   "tmm_citations": [{"section": "e.g. TMM 2020 Part B, Section 2.3, p.45", "requirement": "what the standard requires and how this plan complies"}],
+  "layout": {
+    "layout_title": "string e.g. 'Right Lane Closure — Multilane Undivided Roadway, 50 km/h'",
+    "reference_layout": "string - the TMM 2020 traffic control layout section this is modelled on",
+    "road_name": "string",
+    "direction_of_travel": "string e.g. northbound",
+    "two_way": true,
+    "lanes": 4,
+    "closed_lanes_count": 1,
+    "closed_side": "right",
+    "posted_speed": 50,
+    "dimensions": {"sign_spacing_A_m": 40, "buffer_B_m": 30, "merge_taper_LM_m": 35, "downstream_taper_LD_m": 15, "device_spacing_C_m": 10, "work_area_length_m": 60},
+    "upstream_signs": [{"designation": "C-018-1A", "name": "CONSTRUCTION AHEAD", "side": "right"}],
+    "downstream_signs": [{"designation": "C-086-1", "name": "THANK YOU RESUME SPEED", "side": "right"}],
+    "tcp_flaggers": 0,
+    "arrow_board": true,
+    "notes": "one-line layout note"
+  },
   "map_features": {
     "center": {"lat": 0.0, "lng": 0.0},
     "zoom": 16,
@@ -36,6 +53,12 @@ You MUST respond with ONLY a valid JSON object (no markdown fences, no commentar
 }
 
 Map rules: use the provided site coordinates as center. Place 6-14 markers realistically along the roadway approach and around the work zone (advance warning signs upstream at TMM-compliant spacing ~0.001 deg ≈ 111m, taper cones, flagger stations, work_zone at site). closure_path traces the closed lane segment; detour_path traces detour route if applicable, otherwise empty array. Base signage spacing on the posted speed per TMM tables.
+
+LAYOUT RULES (schematic drawing spec — must follow BC TMM 2020 exactly):
+- Use REAL BC sign designations in both signage_schedule and layout signs. Common ones: C-018-1A CONSTRUCTION AHEAD, C-004 ROAD WORK AHEAD, C-001 TRAFFIC CONTROL PERSON AHEAD, C-029 PREPARE TO STOP, C-030-8 SINGLE LANE TRAFFIC, C-130-L/R LANE CLOSED AHEAD, C-053 LANE CLOSURE ARROW, C-117-L/R LANE SHIFT, C-134 ROAD NARROWS AHEAD, C-132 TWO-WAY TRAFFIC AHEAD, R-004 MAXIMUM SPEED (with C-080-T CONSTRUCTION tab), C-086-1 THANK YOU RESUME SPEED, R-012 ROAD CLOSED, C-027 STOP paddle.
+- TMM TABLE A — Merge Taper Length LM by posted speed: ≤50 km/h: 35 m | 60: 55 m | 70: 160 m | 80: 190 m | 90: 210 m | 100: 230 m | 110: 250 m | 120: 280 m. Downstream taper LD ≈ 15-30 m.
+- TMM TABLE B — Construction Sign Spacing A: ≤50: 40 m | 60: 60 m | 70: 80 m | 80: 100 m | 90-100: 150 m | 110-120: 200 m. Buffer Space B: ≤50: 30 m | 60: 40 m | 70: 60 m | 80: 80 m | 90: 110 m | 100: 140 m | 110: 170 m | 120: 200 m. Device Spacing C (tapers): ≤60: 10 m | ≥70: 15 m.
+- Pick dimensions from these tables for the job's posted speed. upstream_signs ordered as first encountered by drivers (farthest from work area first), typically 3-5 signs. Set tcp_flaggers to 2 for two-lane two-way single-lane-alternating operations, 1 where a TCP controls a movement, else 0. two_way=true for undivided roadways.
 Ground every requirement in the provided TMM 2020 excerpts and cite them precisely in tmm_citations (minimum 4 citations)."""
 
 
