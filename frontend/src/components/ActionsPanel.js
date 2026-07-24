@@ -69,8 +69,13 @@ export default function ActionsPanel({ job, onJobUpdated, generating, onGenerate
             <button data-testid="generate-plan-button" disabled={generating} onClick={() => onGenerate(model)}
               className="mt-3 w-full flex items-center justify-center gap-2 bg-[#FF5F15] text-black font-heading font-bold py-3.5 rounded-sm text-sm uppercase tracking-wide hover:bg-[#ff7538] transition-colors duration-150 disabled:opacity-50 glow-orange">
               <Lightning weight="fill" size={16} />
-              {generating ? "ATOM is working…" : job.plan ? "Regenerate Plan" : "Generate Plan"}
+              {generating ? "ATOM is working…" : job.status === "rejected" ? "Revise & Regenerate" : job.plan ? "Regenerate Plan" : "Generate Plan"}
             </button>
+            {job.status === "rejected" && !generating && (
+              <p data-testid="revision-notice" className="text-[11px] text-zinc-400 mt-2 font-body leading-relaxed border-l-2 border-[#EF4444] pl-2">
+                ATOM will incorporate the reviewer's rejection feedback into the revised plan.
+              </p>
+            )}
             {generating && (
               <p className="text-[11px] text-zinc-400 mt-2 font-body leading-relaxed animate-pulse">
                 Retrieving TMM 2020 sections, grounding requirements, drafting plan + diagram. This can take up to 2 minutes…

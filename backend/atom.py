@@ -81,6 +81,17 @@ async def generate_plan(job: dict, model_key: str) -> dict:
     coords = await geocode(job["location"])
     feedback = await get_feedback_examples()
 
+    revision = ""
+    if job.get("status") == "rejected" and job.get("review_feedback"):
+        prev_plan = json.dumps(job.get("plan") or {}, ensure_ascii=False)[:6000]
+        revision = f"""REVISION REQUEST — the previous plan for THIS job was REJECTED by a reviewer.
+You MUST directly address this rejection feedback in the revised plan:
+"{job['review_feedback']}"
+
+Previous plan (revise and improve it — keep what was correct, fix what was criticized):
+{prev_plan}
+"""
+
     prompt = f"""JOB REQUEST:
 - Title: {job['title']}
 - Location: {job['location']} (site coordinates: {coords['lat']}, {coords['lng']})
@@ -98,6 +109,8 @@ TMM 2020 REFERENCE EXCERPTS (retrieved from knowledge base):
 {context}
 
 {feedback}
+
+{revision}
 
 Generate the complete traffic management plan JSON now."""
 

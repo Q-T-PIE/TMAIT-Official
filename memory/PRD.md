@@ -33,7 +33,7 @@ Web app where clients submit traffic-management requests via a form; A.T.O.M (AI
 - P1: Streaming generation progress (SSE) instead of long request wait
 - P1: Include map snapshot image inside exported PDF (currently coordinates table only)
 - P2: Admin user management UI; feedback/training dashboard page
-- P2: Reject → revise → regenerate loop UX (auto-include rejection feedback for that job)
+- P2: Reject → revise → regenerate loop UX ✅ DONE (rejection feedback + previous plan injected into revision prompt; "Revise & Regenerate" button)
 - P2: Explicit 400 on register with disallowed role (currently coerced to client)
 - P2: CORS explicit origins for production deploy
 - P2: KB doc delete/reindex controls
