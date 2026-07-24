@@ -1,0 +1,43 @@
+# TMAIT — Traffic Management AI Tool (powered by A.T.O.M) — PRD
+
+## Original Problem Statement
+Web app where clients submit traffic-management requests via a form; A.T.O.M (AI) generates a structured, standards-compliant traffic plan grounded in the BC TMM 2020 (RAG), with a visual map-based traffic setup diagram. Reviewers approve/reject/edit plans; approvals + corrections feed an ATOM training loop. Export final plan as PDF. Three-panel UI: Jobs / Workspace / Actions.
+
+## User Choices
+- Region/standard: **British Columbia, Canada — TMM 2020** (BC MoTI). Official PDFs downloaded from gov.bc.ca (Part A, Part B, Traffic Control Layouts) and auto-indexed.
+- Diagram: **Map-based (Leaflet)** with signage/closure/detour markers.
+- Auth: **JWT custom auth** (roles: client, reviewer, admin).
+- AI: **User's own keys** — OpenAI `gpt-5.2` (primary) + Anthropic `claude-fable-5` (selectable). Keys in backend/.env.
+
+## Architecture
+- FastAPI backend (port 8001, /api prefix) + React frontend + MongoDB.
+- `backend/server.py` routes; `atom.py` LLM plan generation (emergentintegrations LlmChat, stream aggregated); `rag.py` PDF chunking + OpenAI embeddings (text-embedding-3-small) + cosine search in MongoDB `kb_chunks`; `auth.py` JWT/bcrypt; `pdf_export.py` reportlab.
+- Geocoding: Nominatim (free) for site coordinates → map center.
+- Collections: users, jobs, kb_docs, kb_chunks, feedback.
+- Job statuses: draft → generating → pending_review → approved/rejected.
+- Training loop: approvals/rejections/plan-edits stored in `feedback`; last 3 injected into generation prompt.
+
+## Implemented (2026-06 / first build)
+- JWT auth (login/register/me/logout), seeded users (see /app/memory/test_credentials.md)
+- Client request form (location, works type, duration, lanes, speed, volume, hazards, notes)
+- ATOM plan generation with RAG grounding: structured JSON plan (summary, closures, detours, signage schedule, setup steps, safety, TMM citations, map features)
+- Jobs sidebar with live statuses; three-panel Command Center UI (dark/light hybrid, Chivo/IBM Plex/JetBrains Mono)
+- Leaflet map diagram (markers by type, closure/detour polylines, legend)
+- Review workflow: approve/reject with feedback, reviewer plan editing (Save Corrections)
+- Knowledge base: 3 built-in TMM 2020 docs auto-indexed (289 chunks) + admin/reviewer PDF upload
+- PDF export (reportlab) with all sections + citations + marker coordinates
+- Tested: iteration_1 — 100% backend (25/25) and frontend pass
+
+## Backlog / Next Tasks
+- P1: Client file attachments on request form (needs object storage integration)
+- P1: Streaming generation progress (SSE) instead of long request wait
+- P1: Include map snapshot image inside exported PDF (currently coordinates table only)
+- P2: Admin user management UI; feedback/training dashboard page
+- P2: Reject → revise → regenerate loop UX (auto-include rejection feedback for that job)
+- P2: Explicit 400 on register with disallowed role (currently coerced to client)
+- P2: CORS explicit origins for production deploy
+- P2: KB doc delete/reindex controls
+
+## Notes
+- Frontend is React JS (template is CRA JS, not TS) — functionality identical to spec.
+- ATOM "training" v1 = feedback store injected into prompts (as per assumption in spec).
