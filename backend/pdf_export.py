@@ -10,7 +10,7 @@ ORANGE = colors.HexColor("#FF5F15")
 DARK = colors.HexColor("#0A0A0A")
 
 
-def build_plan_pdf(job: dict, diagram_png: bytes = None) -> bytes:
+def build_plan_pdf(job: dict, diagram_pngs: list = None) -> bytes:
     plan = job.get("plan") or {}
     buf = io.BytesIO()
     doc = SimpleDocTemplate(buf, pagesize=letter, topMargin=0.7 * inch, bottomMargin=0.7 * inch)
@@ -62,17 +62,18 @@ def build_plan_pdf(job: dict, diagram_png: bytes = None) -> bytes:
 
     section("8. Safety Considerations", plan.get("safety_considerations"))
 
-    if diagram_png:
-        el.append(PageBreak())
-        el.append(Paragraph("Traffic Control Layout — TMM 2020 Schematic", h2))
-        ir = ImageReader(io.BytesIO(diagram_png))
-        iw, ih = ir.getSize()
-        max_w, max_h = 7.0 * inch, 8.6 * inch
-        ratio = min(max_w / iw, max_h / ih)
-        el.append(RLImage(io.BytesIO(diagram_png), width=iw * ratio, height=ih * ratio))
-        lay = plan.get("layout") or {}
-        if lay.get("notes"):
-            el.append(Paragraph(f"NOTE: {lay['notes']}", small))
+    if diagram_pngs:
+        lays = plan.get("layouts") or ([plan["layout"]] if plan.get("layout") else [])
+        for idx, png in enumerate(diagram_pngs):
+            el.append(PageBreak())
+            el.append(Paragraph(f"Traffic Control Layout — TMM 2020 Schematic (Sheet TC-{idx + 1} of {len(diagram_pngs)})", h2))
+            ir = ImageReader(io.BytesIO(png))
+            iw, ih = ir.getSize()
+            max_w, max_h = 7.0 * inch, 8.3 * inch
+            ratio = min(max_w / iw, max_h / ih)
+            el.append(RLImage(io.BytesIO(png), width=iw * ratio, height=ih * ratio))
+            if idx < len(lays) and (lays[idx] or {}).get("notes"):
+                el.append(Paragraph(f"NOTE: {lays[idx]['notes']}", small))
         el.append(PageBreak())
 
     cits = plan.get("tmm_citations") or []

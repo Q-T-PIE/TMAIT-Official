@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { FileText, MapTrifold, TrafficCone } from "@phosphor-icons/react";
+import { FileText, MapTrifold, TrafficCone, Paperclip } from "@phosphor-icons/react";
 import JobsSidebar from "../components/JobsSidebar";
 import RequestForm from "../components/RequestForm";
 import PlanDocument from "../components/PlanDocument";
@@ -20,6 +20,8 @@ export default function Dashboard() {
   const [view, setView] = useState("empty"); // empty | form | job
   const [tab, setTab] = useState("plan");
   const [generating, setGenerating] = useState(false);
+  const [genProgress, setGenProgress] = useState(null);
+  const [sheetIdx, setSheetIdx] = useState(0);
   const [showKb, setShowKb] = useState(false);
 
   const loadJobs = useCallback(() => api.get("/jobs").then((r) => setJobs(r.data)).catch(() => {}), []);
@@ -28,6 +30,7 @@ export default function Dashboard() {
   const openJob = async (id) => {
     setView("job");
     setTab("plan");
+    setSheetIdx(0);
     const { data } = await api.get(`/jobs/${id}`);
     setJob(data);
   };
@@ -48,16 +51,39 @@ export default function Dashboard() {
 
   const generate = async (model) => {
     setGenerating(true);
+    setGenProgress({ stage: "retrieving", text: "", chars: 0 });
     try {
-      const { data } = await api.post(`/jobs/${job.id}/generate`, { model }, { timeout: 300000 });
-      setJob(data);
-      loadJobs();
-      toast.success("ATOM generated a TMM 2020-compliant plan");
+      const res = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/jobs/${job.id}/generate/stream`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("tmait_token")}` },
+        body: JSON.stringify({ model }),
+      });
+      if (!res.ok || !res.body) throw new Error(`Generation failed (HTTP ${res.status})`);
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = "", finished = false;
+      while (!finished) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        const parts = buf.split("\n\n");
+        buf = parts.pop();
+        for (const part of parts) {
+          const line = part.split("\n").find((l) => l.startsWith("data: "));
+          if (!line) continue;
+          const evt = JSON.parse(line.slice(6));
+          if (evt.type === "stage") setGenProgress((p) => ({ ...p, stage: evt.stage }));
+          else if (evt.type === "delta") setGenProgress((p) => ({ stage: "drafting", text: (p.text + evt.text).slice(-700), chars: p.chars + evt.text.length }));
+          else if (evt.type === "done") { setJob(evt.job); setSheetIdx(0); loadJobs(); toast.success("ATOM generated a TMM 2020-compliant plan"); finished = true; }
+          else if (evt.type === "error") { toast.error(evt.detail); refreshJob(); finished = true; }
+        }
+      }
     } catch (e) {
-      toast.error(apiError(e));
+      toast.error(e.message || "Generation failed");
       refreshJob();
     } finally {
       setGenerating(false);
+      setGenProgress(null);
     }
   };
 
@@ -71,7 +97,22 @@ export default function Dashboard() {
     }
   };
 
+  const downloadAttachment = async (a) => {
+    try {
+      const res = await api.get(`/jobs/${job.id}/attachments/${a.id}`, { responseType: "blob" });
+      const url = URL.createObjectURL(res.data);
+      const el = document.createElement("a");
+      el.href = url;
+      el.download = a.filename;
+      el.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      toast.error("Download failed");
+    }
+  };
+
   const isReviewer = user.role === "reviewer" || user.role === "admin";
+  const sheets = job?.plan ? (job.plan.layouts || (job.plan.layout ? [job.plan.layout] : [])) : [];
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-[#0A0A0A]">
@@ -98,6 +139,16 @@ export default function Dashboard() {
               <p className="font-mono text-xs uppercase tracking-[0.25em] text-[#FF5F15] mb-2">{job.works_type}</p>
               <h1 data-testid="job-title" className="font-heading text-4xl font-bold tracking-tight text-[#0A0A0A] leading-none">{job.title}</h1>
               <p className="text-sm text-zinc-500 font-body mt-2">{job.location}</p>
+              {job.attachments?.length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-3" data-testid="attachments-list">
+                  {job.attachments.map((a) => (
+                    <button key={a.id} data-testid={`attachment-${a.id}`} onClick={() => downloadAttachment(a)}
+                      className="flex items-center gap-1.5 border border-black/15 bg-white px-3 py-1.5 rounded-sm font-mono text-[10px] uppercase tracking-[0.1em] text-zinc-600 hover:border-[#FF5F15] hover:text-black transition-colors duration-150">
+                      <Paperclip size={12} /> {a.filename}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
             {!job.plan && !generating && (
@@ -109,11 +160,29 @@ export default function Dashboard() {
 
             {generating && (
               <div className="border border-black/10 bg-white rounded-sm p-8 max-w-2xl" data-testid="generating-state">
-                <div className="flex items-center gap-3 mb-3">
+                <div className="flex items-center gap-3 mb-4">
                   <div className="w-3 h-3 bg-[#FF5F15] rounded-full animate-ping" />
-                  <p className="font-heading text-lg font-bold text-[#0A0A0A]">A.T.O.M is drafting the plan…</p>
+                  <p className="font-heading text-lg font-bold text-[#0A0A0A]">A.T.O.M is working…</p>
                 </div>
-                <p className="text-sm text-zinc-500 font-body leading-relaxed">Retrieving TMM 2020 excerpts → grounding signage & taper requirements → composing plan → placing diagram markers. Typically 30–120 seconds.</p>
+                <div className="flex flex-wrap items-center gap-2 mb-4">
+                  {[["retrieving", "TMM Retrieval"], ["geocoding", "Geocoding"], ["drafting", "Drafting Plan"]].map(([k, label]) => {
+                    const order = ["retrieving", "geocoding", "drafting"];
+                    const active = genProgress?.stage === k;
+                    const done = order.indexOf(genProgress?.stage) > order.indexOf(k);
+                    return (
+                      <span key={k} data-testid={`stage-${k}`}
+                        className={`font-mono text-[10px] uppercase tracking-[0.15em] px-2.5 py-1 border rounded-sm ${active ? "border-[#FF5F15] text-[#FF5F15] animate-pulse" : done ? "border-[#10B981] text-[#10B981]" : "border-black/15 text-zinc-400"}`}>
+                        {done ? "✓ " : ""}{label}
+                      </span>
+                    );
+                  })}
+                  {genProgress?.chars > 0 && <span className="font-mono text-[10px] text-zinc-500">{genProgress.chars.toLocaleString()} chars</span>}
+                </div>
+                {genProgress?.text ? (
+                  <pre data-testid="stream-preview" className="bg-[#0A0A0A] text-[#34d399] font-mono text-[10px] leading-relaxed p-4 rounded-sm max-h-44 overflow-hidden whitespace-pre-wrap">{genProgress.text}</pre>
+                ) : (
+                  <p className="text-sm text-zinc-500 font-body leading-relaxed">Retrieving TMM 2020 excerpts → grounding signage & taper requirements → composing plan + layout sheets.</p>
+                )}
               </div>
             )}
 
@@ -129,12 +198,29 @@ export default function Dashboard() {
                 </div>
                 <div key={tab} className="animate-fade">
                   {tab === "plan" && <PlanDocument plan={job.plan} editable={isReviewer} onSave={savePlan} />}
-                  {tab === "layout" && <SchematicDiagram plan={job.plan} job={job} />}
+                  {tab === "layout" && (
+                    <div>
+                      {sheets.length > 1 && (
+                        <div className="flex border border-black/15 rounded-sm w-fit mb-4 overflow-hidden" data-testid="sheet-tabs">
+                          {sheets.map((s, i) => (
+                            <button key={i} data-testid={`sheet-tab-${i}`} onClick={() => setSheetIdx(i)}
+                              className={`px-4 py-2 text-[10px] font-mono uppercase tracking-[0.12em] transition-colors duration-150 ${sheetIdx === i ? "bg-[#FF5F15] text-black font-bold" : "bg-white text-zinc-600 hover:text-black"}`}>
+                              TC-{i + 1}{s.sheet_title ? ` · ${s.sheet_title.slice(0, 24)}` : ""}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      <SchematicDiagram layout={sheets[Math.min(sheetIdx, Math.max(sheets.length - 1, 0))] || null} job={job}
+                        sheetIndex={Math.min(sheetIdx, Math.max(sheets.length - 1, 0))} sheetCount={sheets.length} />
+                    </div>
+                  )}
                   {tab === "map" && <TrafficMap features={job.plan.map_features} />}
                 </div>
-                {job.plan.layout && tab !== "layout" && (
+                {sheets.length > 0 && (
                   <div style={{ position: "absolute", left: -20000, top: 0 }} aria-hidden="true">
-                    <SchematicDiagram plan={job.plan} job={job} svgId="layout-svg-export" />
+                    {sheets.map((l, i) => (
+                      <SchematicDiagram key={i} layout={l} job={job} svgId={`layout-svg-export-${i}`} sheetIndex={i} sheetCount={sheets.length} />
+                    ))}
                   </div>
                 )}
               </>

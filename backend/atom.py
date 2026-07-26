@@ -26,7 +26,8 @@ You MUST respond with ONLY a valid JSON object (no markdown fences, no commentar
   "setup_steps": ["ordered step-by-step site setup instructions"],
   "safety_considerations": "string - hazards, worker safety, flagger requirements, buffer zones",
   "tmm_citations": [{"section": "e.g. TMM 2020 Part B, Section 2.3, p.45", "requirement": "what the standard requires and how this plan complies"}],
-  "layout": {
+  "layouts": [{
+    "sheet_title": "string - which approach/stage this sheet covers e.g. 'Northbound approach on Lonsdale Ave'",
     "layout_title": "string e.g. 'Right Lane Closure — Multilane Undivided Roadway, 50 km/h'",
     "reference_layout": "string - the TMM 2020 traffic control layout section this is modelled on",
     "road_name": "string",
@@ -42,7 +43,7 @@ You MUST respond with ONLY a valid JSON object (no markdown fences, no commentar
     "tcp_flaggers": 0,
     "arrow_board": true,
     "notes": "one-line layout note"
-  },
+  }],
   "map_features": {
     "center": {"lat": 0.0, "lng": 0.0},
     "zoom": 16,
@@ -59,6 +60,7 @@ LAYOUT RULES (schematic drawing spec — must follow BC TMM 2020 exactly):
 - TMM TABLE A — Merge Taper Length LM by posted speed: ≤50 km/h: 35 m | 60: 55 m | 70: 160 m | 80: 190 m | 90: 210 m | 100: 230 m | 110: 250 m | 120: 280 m. Downstream taper LD ≈ 15-30 m.
 - TMM TABLE B — Construction Sign Spacing A: ≤50: 40 m | 60: 60 m | 70: 80 m | 80: 100 m | 90-100: 150 m | 110-120: 200 m. Buffer Space B: ≤50: 30 m | 60: 40 m | 70: 60 m | 80: 80 m | 90: 110 m | 100: 140 m | 110: 170 m | 120: 200 m. Device Spacing C (tapers): ≤60: 10 m | ≥70: 15 m.
 - Pick dimensions from these tables for the job's posted speed. upstream_signs ordered as first encountered by drivers (farthest from work area first), typically 3-5 signs. Set tcp_flaggers to 2 for two-lane two-way single-lane-alternating operations, 1 where a TCP controls a movement, else 0. two_way=true for undivided roadways.
+- MULTI-SHEET: output exactly 1 layout sheet for simple linear closures. For intersections, multi-approach sites, or staged/phased works you MUST output one SEPARATE sheet per affected approach or stage (2-4 sheets) — never merge multiple approaches into a single sheet. E.g. a signalized intersection affecting eastbound and westbound approaches requires 2 sheets, each with its own sheet_title, direction_of_travel, signs and dimensions.
 Ground every requirement in the provided TMM 2020 excerpts and cite them precisely in tmm_citations (minimum 4 citations)."""
 
 
@@ -91,18 +93,26 @@ async def get_feedback_examples(limit: int = 3) -> str:
     return "\n".join(lines)
 
 
-async def generate_plan(job: dict, model_key: str) -> dict:
+async def stream_generate(job: dict, model_key: str):
     provider, model, env_key = MODELS.get(model_key, MODELS["gpt-5.2"])
     api_key = os.environ[env_key]
 
+    yield {"type": "stage", "stage": "retrieving"}
     rag_query = f"{job['works_type']} {job.get('road_type', '')} lane closure speed {job.get('speed_limit', '')} km/h signage traffic control {job.get('traffic_volume', '')} volume"
     context_chunks = await search_kb(rag_query, k=8)
     context = "\n\n".join(
         [f"[{c['doc_title']} — p.{c['page']}]\n{c['text'][:1800]}" for c in context_chunks]
     ) or "No TMM excerpts available yet — rely on BC TMM 2020 standards knowledge and state citations carefully."
 
+    yield {"type": "stage", "stage": "geocoding"}
     coords = await geocode(job["location"])
     feedback = await get_feedback_examples()
+
+    attach_lines = []
+    for a in (job.get("attachments") or []):
+        if a.get("text_excerpt"):
+            attach_lines.append(f"--- Attachment: {a['filename']} ---\n{a['text_excerpt'][:2500]}")
+    attachments_ctx = ("CLIENT-PROVIDED ATTACHMENTS (site-specific info to incorporate):\n" + "\n".join(attach_lines)) if attach_lines else ""
 
     revision = ""
     if job.get("status") == "rejected" and job.get("review_feedback"):
@@ -128,6 +138,8 @@ Previous plan (revise and improve it — keep what was correct, fix what was cri
 - Known hazards: {job.get('hazards', 'None stated')}
 - Additional notes: {job.get('notes', 'None')}
 
+{attachments_ctx}
+
 TMM 2020 REFERENCE EXCERPTS (retrieved from knowledge base):
 {context}
 
@@ -137,6 +149,7 @@ TMM 2020 REFERENCE EXCERPTS (retrieved from knowledge base):
 
 Generate the complete traffic management plan JSON now."""
 
+    yield {"type": "stage", "stage": "drafting"}
     chat = LlmChat(
         api_key=api_key,
         session_id=f"plan-{job['id']}",
@@ -149,6 +162,7 @@ Generate the complete traffic management plan JSON now."""
     async for ev in chat.stream_message(UserMessage(text=prompt)):
         if isinstance(ev, TextDelta):
             text += ev.content
+            yield {"type": "delta", "text": ev.content}
         elif isinstance(ev, StreamDone):
             break
 
@@ -159,4 +173,11 @@ Generate the complete traffic management plan JSON now."""
     plan.setdefault("map_features", {})
     plan["map_features"].setdefault("center", coords)
     sources = [{"doc_title": c["doc_title"], "page": c["page"], "score": round(c["score"], 3)} for c in context_chunks]
-    return {"plan": plan, "sources": sources, "model_used": model_key}
+    yield {"type": "result", "plan": plan, "sources": sources, "model_used": model_key}
+
+
+async def generate_plan(job: dict, model_key: str) -> dict:
+    async for evt in stream_generate(job, model_key):
+        if evt["type"] == "result":
+            return {"plan": evt["plan"], "sources": evt["sources"], "model_used": evt["model_used"]}
+    raise ValueError("Generation produced no result")

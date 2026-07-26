@@ -29,12 +29,15 @@ export default function ActionsPanel({ job, onJobUpdated, generating, onGenerate
 
   const exportPdf = async () => {
     try {
-      let diagram_png = null;
+      let diagram_pngs = [];
       try {
-        const svgEl = document.getElementById("layout-svg") || document.getElementById("layout-svg-export");
-        if (svgEl) diagram_png = await svgToPngDataUrl(svgEl);
+        for (let i = 0; i < 12; i++) {
+          const el = document.getElementById(`layout-svg-export-${i}`);
+          if (!el) break;
+          diagram_pngs.push(await svgToPngDataUrl(el));
+        }
       } catch {}
-      const res = await api.post(`/jobs/${job.id}/export`, { diagram_png }, { responseType: "blob" });
+      const res = await api.post(`/jobs/${job.id}/export`, { diagram_pngs }, { responseType: "blob" });
       const url = URL.createObjectURL(res.data);
       const a = document.createElement("a");
       a.href = url;

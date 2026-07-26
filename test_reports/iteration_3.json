@@ -1,0 +1,41 @@
+{
+  "summary": "Iteration 3 tests three new features (multi-sheet layouts, request-form attachments, SSE streaming) end-to-end. Backend: 37/37 pytest tests passing (12 new + 25 regression). Attachment upload (.txt + PNG) + byte-identical roundtrip through Emergent Object Storage verified. Unsupported extensions (.exe, no-extension) rejected 400. Cross-client 403 enforced. Download requires auth (401 without token). SSE endpoint requires auth (401). Multi-sheet PDF export with 2 diagram_pngs -> valid PDF with >=2 embedded Image XObjects. Legacy plan.layout (single-sheet) job returns valid data. LLM generation NOT re-triggered (main agent already verified 3 stages + 3753 deltas). Frontend: Client login -> open Marine Dr job (b7a59a50) -> site_memo.txt chip visible + click downloads 172 bytes -> Layout Diagram tab -> sheet-tab-0 + sheet-tab-1 present, switching re-renders SVG -> hidden #layout-svg-export-0/-1 both in DOM -> Export PDF (335KB, %PDF- header, 3 embedded images >=2). Regression on Watermain repair (legacy plan.layout) -> layout tab still renders schematic diagram, no sheet-tabs (single sheet). New Request form with .txt attachment: form-attachments-input works, names show, submit -> new job with attachment chip + no-plan-state (did not generate).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/jobs/{id}/attachments", "issue": "Response only returns id/filename/content_type/size — text_excerpt (used later for LLM grounding) not surfaced to client, so caller cannot preview it. Minor UX."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_new_features.py",
+    "/app/backend/tests/test_auth.py",
+    "/app/backend/tests/test_jobs_flow.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py:82 ExportIn keeps deprecated diagram_png (singular) alongside diagram_pngs — good for backward compat, but frontend already fully migrated to diagram_pngs; consider removing singular in a future cleanup.",
+    "server.py:210 stream_generate error handler restores prev_status via 'prev_status if prev_status != generating else draft' — good; but if the initial DB fetch returned status='generating' from a prior crashed request, this would silently keep it as draft rather than reflect the real prior state. Non-critical.",
+    "Dashboard.js:76 stream 'text' rolling buffer truncated with .slice(-700) — fine for UX preview, but the chars counter continues incrementing based on delta.text.length so no data loss for UI counter. Good.",
+    "Dashboard.js:57 Bearer token read from localStorage.getItem('tmait_token'). If the axios interceptor stores a different key (e.g. via cookie fallback), a token-refresh scenario could break the SSE call. Verified token key is consistent throughout in this codebase — good, but fragile.",
+    "atom.py:113 attachment text_excerpt is trimmed to 2500 chars per attachment; if a client uploads many large PDFs the prompt could get long. Consider a total budget cap. Non-blocking.",
+    "storage.py:6 _storage_key is module-global singleton — fine for single-worker uvicorn but under gunicorn with multiple workers each worker will re-init. Acceptable.",
+    "RequestForm.js:36 sequential await api.post per file — for many attachments this serializes uploads; Promise.all would be faster. Minor perf.",
+    "ActionsPanel.js:34 exportPdf loops i<12 checking each layout-svg-export-i — hard-coded 12-sheet ceiling matches TMM max staging; a plan with more sheets would silently drop the rest. Non-issue in practice."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_new_features.py (new)"
+  ],
+  "success_rate": {"backend": "100% (37/37, including 12 new)", "frontend": "100% (all new-feature + regression flows passed)"},
+  "test_credentials": "admin@tmait.ca/Admin@1234, reviewer@tmait.ca/Review@1234, client@tmait.ca/Client@1234",
+  "seed_data_creation": "Added test attachments to job b7a59a50 (TEST_pytest_memo.txt, TEST_pytest_tiny.png x2 from re-runs). Created a UI-flow job 'TEST_UI_ Attachment upload flow' with a TEST_site_plan.txt attachment (draft, no plan). Also created two TEST_ draft jobs from test_review/export_no_plan. All prefixed TEST_ for easy cleanup. Job b7a59a50 status preserved as pending_review (LLM not re-triggered).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "All three new features working end-to-end: (1) Multi-sheet layouts on b7a59a50 (2 layouts) — sheet-tabs UI, PDF embeds both sheets, hidden export copies for SVG->PNG conversion both mount. (2) Attachments — full roundtrip through Emergent Object Storage for txt/png, .exe rejected, cross-client 403, form upload path from RequestForm works. (3) SSE endpoint auth-gated (401 without token). LLM streaming generation NOT re-triggered here (main agent already verified 3 stages + 3753 deltas + 2 layouts in plan). Legacy plan.layout backward-compat verified (67c7cffc renders schematic, no sheet-tabs). No integration blockers, no auth issues, no UI bugs. Consider cleaning up TEST_ prefixed jobs and attachments before next iteration if job list grows too long.",
+  "rca of the issue": "N/A — no bugs found."
+}

@@ -13,6 +13,7 @@ export default function RequestForm({ onCreated }) {
     traffic_volume: VOLUMES[1], hazards: "", notes: "",
   });
   const [busy, setBusy] = useState(false);
+  const [files, setFiles] = useState([]);
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
 
   const submit = async (e) => {
@@ -21,8 +22,22 @@ export default function RequestForm({ onCreated }) {
     try {
       const payload = { ...f, lanes_total: +f.lanes_total, lanes_closed: +f.lanes_closed, speed_limit: +f.speed_limit };
       const { data } = await api.post("/jobs", payload);
+      for (const file of files) {
+        const fd = new FormData();
+        fd.append("file", file);
+        try {
+          await api.post(`/jobs/${data.id}/attachments`, fd);
+        } catch (err) {
+          toast.error(`Attachment "${file.name}" failed: ${apiError(err)}`);
+        }
+      }
+      let job = data;
+      if (files.length) {
+        const res = await api.get(`/jobs/${data.id}`);
+        job = res.data;
+      }
       toast.success("Request submitted — ready for ATOM generation");
-      onCreated(data);
+      onCreated(job);
     } catch (err) {
       toast.error(apiError(err));
     } finally {
@@ -94,6 +109,15 @@ export default function RequestForm({ onCreated }) {
           <div className="md:col-span-2">
             <label className={lbl}>Additional notes</label>
             <textarea data-testid="form-notes-input" className={inp} rows={2} value={f.notes} onChange={set("notes")} placeholder="Anything else ATOM should consider" />
+          </div>
+          <div className="md:col-span-2">
+            <label className={lbl}>Attachments — site photos, drawings, permits (PDF / image / txt, max 10 MB each)</label>
+            <input data-testid="form-attachments-input" type="file" multiple accept=".pdf,.png,.jpg,.jpeg,.webp,.txt"
+              onChange={(e) => setFiles(Array.from(e.target.files || []))}
+              className="block w-full text-sm text-zinc-500 font-body file:mr-3 file:bg-[#0A0A0A] file:text-white file:border-0 file:px-4 file:py-2 file:rounded-sm file:text-xs file:font-mono file:uppercase file:tracking-wider file:cursor-pointer" />
+            {files.length > 0 && (
+              <p data-testid="form-attachments-names" className="font-mono text-[10px] text-zinc-500 mt-1.5">{files.map((x) => x.name).join(" · ")}</p>
+            )}
           </div>
         </div>
         <button data-testid="form-submit-button" disabled={busy}

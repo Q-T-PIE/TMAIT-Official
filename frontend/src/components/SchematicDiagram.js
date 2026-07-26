@@ -45,8 +45,8 @@ function LaneArrow({ x, y, down }) {
   return <path d={d} stroke="#111" strokeWidth="2" fill="none" />;
 }
 
-export default function SchematicDiagram({ plan, job, svgId = "layout-svg" }) {
-  const L = plan?.layout;
+export default function SchematicDiagram({ layout, job, svgId = "layout-svg", sheetIndex = 0, sheetCount = 1 }) {
+  const L = layout;
   if (!L) {
     return (
       <div data-testid="layout-missing-state" className="border border-black/10 bg-white rounded-sm p-8 max-w-2xl">
@@ -217,7 +217,7 @@ export default function SchematicDiagram({ plan, job, svgId = "layout-svg" }) {
           <text x="182" y="56" fontSize="8.5" fontFamily="monospace" fill="#555">{(L.road_name || job?.location || "").slice(0, 50)} · {L.direction_of_travel || ""} · {L.posted_speed || job?.speed_limit} km/h</text>
           <text x={W - 238} y="24" fontSize="9" fontFamily="monospace" fontWeight="bold" fill="#111">NOT TO SCALE</text>
           <text x={W - 238} y="40" fontSize="8.5" fontFamily="monospace" fill="#555">{new Date().toLocaleDateString()}</text>
-          <text x={W - 238} y="56" fontSize="8.5" fontFamily="monospace" fill="#555">Sheet TC-1 of 1</text>
+          <text x={W - 238} y="56" fontSize="8.5" fontFamily="monospace" fill="#555">Sheet TC-{sheetIndex + 1} of {Math.max(sheetCount, 1)}</text>
         </g>
       </svg>
       {L.notes && <p className="font-mono text-[11px] text-zinc-500 mt-2">NOTE: {L.notes}</p>}
