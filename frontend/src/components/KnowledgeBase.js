@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from "react";
-import { UploadSimple, FilePdf, X } from "@phosphor-icons/react";
+import { UploadSimple, FilePdf, X, ArrowsClockwise, Trash } from "@phosphor-icons/react";
 import api, { apiError } from "../lib/api";
 import { toast } from "sonner";
 
 export default function KnowledgeBase({ onClose }) {
   const [data, setData] = useState({ docs: [], total_chunks: 0 });
   const [uploading, setUploading] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(null);
+  const [busyDoc, setBusyDoc] = useState(null);
   const fileRef = useRef();
 
   const load = () => api.get("/kb/docs").then((r) => setData(r.data)).catch(() => {});
@@ -31,6 +33,33 @@ export default function KnowledgeBase({ onClose }) {
     } finally {
       setUploading(false);
       e.target.value = "";
+    }
+  };
+
+  const reindex = async (d) => {
+    setBusyDoc(d.id);
+    try {
+      await api.post(`/kb/docs/${d.id}/reindex`);
+      toast.success(`"${d.title}" reindexed`);
+      load();
+    } catch (err) {
+      toast.error(apiError(err));
+    } finally {
+      setBusyDoc(null);
+    }
+  };
+
+  const removeDoc = async (d) => {
+    setBusyDoc(d.id);
+    try {
+      await api.delete(`/kb/docs/${d.id}`);
+      toast.success(`"${d.title}" removed from knowledge base`);
+      setConfirmDelete(null);
+      load();
+    } catch (err) {
+      toast.error(apiError(err));
+    } finally {
+      setBusyDoc(null);
     }
   };
 
@@ -67,6 +96,21 @@ export default function KnowledgeBase({ onClose }) {
                 style={{ color: statusColor[d.status], borderColor: `${statusColor[d.status]}66` }}>
                 {d.status}
               </span>
+              <div className="flex items-center gap-1">
+                <button data-testid={`kb-reindex-button-${d.id}`} onClick={() => reindex(d)} disabled={busyDoc === d.id || d.status === "indexing"}
+                  className="text-zinc-500 hover:text-[#FF5F15] p-1.5 transition-colors duration-150 disabled:opacity-30" title="Re-index document">
+                  <ArrowsClockwise size={15} className={busyDoc === d.id ? "animate-spin" : ""} />
+                </button>
+                {confirmDelete === d.id ? (
+                  <button data-testid={`kb-delete-confirm-${d.id}`} onClick={() => removeDoc(d)} disabled={busyDoc === d.id}
+                    className="bg-[#EF4444] text-white px-2 py-1 rounded-sm font-mono text-[9px] uppercase tracking-wider font-bold">Confirm</button>
+                ) : (
+                  <button data-testid={`kb-delete-button-${d.id}`} onClick={() => setConfirmDelete(d.id)} disabled={busyDoc === d.id}
+                    className="text-zinc-500 hover:text-[#EF4444] p-1.5 transition-colors duration-150 disabled:opacity-30" title="Delete document">
+                    <Trash size={15} />
+                  </button>
+                )}
+              </div>
             </div>
           ))}
           {data.docs.length === 0 && <p className="text-sm text-zinc-500 font-body">Built-in BC TMM 2020 is being indexed on first startup — refresh shortly.</p>}

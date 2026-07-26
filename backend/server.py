@@ -76,6 +76,10 @@ class ReviewIn(BaseModel):
     feedback: Optional[str] = None
 
 
+class UserRoleIn(BaseModel):
+    role: str
+
+
 class ExportIn(BaseModel):
     diagram_png: Optional[str] = None
     diagram_pngs: Optional[list] = None
@@ -123,6 +127,43 @@ async def me(user: dict = Depends(get_current_user)):
 @api.post("/auth/logout")
 async def logout(response: Response):
     response.delete_cookie("access_token", path="/")
+    return {"ok": True}
+
+
+# ---------- User management (admin) ----------
+@api.get("/users")
+async def list_users(user: dict = Depends(get_current_user)):
+    require_roles(user, ["admin"])
+    users = await db.users.find({}, {"_id": 0, "password_hash": 0}).sort("created_at", 1).to_list(500)
+    job_counts = {}
+    async for row in db.jobs.aggregate([{"$group": {"_id": "$client_id", "n": {"$sum": 1}}}]):
+        job_counts[row["_id"]] = row["n"]
+    for u in users:
+        u["job_count"] = job_counts.get(u["id"], 0)
+    return users
+
+
+@api.patch("/users/{user_id}")
+async def update_user_role(user_id: str, data: UserRoleIn, user: dict = Depends(get_current_user)):
+    require_roles(user, ["admin"])
+    if data.role not in ("client", "reviewer", "admin"):
+        raise HTTPException(status_code=400, detail="Role must be client, reviewer or admin")
+    if user_id == user["id"]:
+        raise HTTPException(status_code=400, detail="You cannot change your own role")
+    result = await db.users.update_one({"id": user_id}, {"$set": {"role": data.role}})
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="User not found")
+    return {"ok": True, "role": data.role}
+
+
+@api.delete("/users/{user_id}")
+async def delete_user(user_id: str, user: dict = Depends(get_current_user)):
+    require_roles(user, ["admin"])
+    if user_id == user["id"]:
+        raise HTTPException(status_code=400, detail="You cannot delete your own account")
+    result = await db.users.delete_one({"id": user_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="User not found")
     return {"ok": True}
 
 
@@ -360,6 +401,26 @@ async def kb_upload(file: UploadFile = File(...), title: str = Form(None), user:
         f.write(await file.read())
     doc = await rag.index_document(path, title or file.filename, safe_name)
     return doc
+
+
+@api.delete("/kb/docs/{doc_id}")
+async def kb_delete(doc_id: str, user: dict = Depends(get_current_user)):
+    require_roles(user, ["admin", "reviewer"])
+    ok = await rag.delete_document(doc_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Document not found")
+    return {"ok": True}
+
+
+@api.post("/kb/docs/{doc_id}/reindex")
+async def kb_reindex(doc_id: str, user: dict = Depends(get_current_user)):
+    require_roles(user, ["admin", "reviewer"])
+    try:
+        return await rag.reindex_document(doc_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Document not found")
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 # ---------- Feedback (training loop) ----------

@@ -1,0 +1,29 @@
+{
+  "summary": "Frontend-only verification of three new iteration features (ATOM Training modal, User Management modal, per-doc KB Reindex/Delete). All flows drove real backend calls end-to-end (no mocks). Admin: sidebar shows all 3 buttons; Training modal renders stats (3 Approved / 0 Rejected / 7 Corrected) with 10 feedback entries where exactly the first 3 carry 'In active prompt' badge and entry[3]+ do not; Users modal loads 4 rows (3 seeded + 1 disposable) with correct job counts (Casey=2), admin's own role-select and delete-button both disabled=true (self-protection); Casey role toggle client -> reviewer -> client succeeded via user-role-select-{id} with success toasts; delete of throwaway 'Disposable Test' via user-delete-button-{id} + user-delete-confirm-{id} removed the row. KB modal: kb-reindex-button-{id} and kb-delete-button-{id} render per doc, reindex on 'TMM 2020 Part A' preserved status=indexed with 44 chunks (verified via API after run), upload of /tmp/test_kb.pdf via kb-file-input added a new indexed doc, delete flow (kb-delete-button + kb-delete-confirm) removed it and restored total_chunks=289 baseline. Role visibility: reviewer sees KB + Training but NOT Users (count=0); client sees none of the three. Regression: client sidebar loads 2 jobs (Signal upgrade Marine Dr + Watermain repair Lonsdale), job opens, Plan Document/Layout Diagram/Map View tabs all present, Plan and Layout tabs clicked successfully. No LLM generation triggered. No built-in TMM docs deleted. All state fully restored to baseline.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/test_reports/iteration_4.json"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "KnowledgeBase.js:16 polls GET /kb/docs every 5s while modal is open — fine, but the last interval fires 4-5s after close only if the component unmounts before it queues; the cleanup return () => clearInterval(t) is correct.",
+    "UserManagement.js:65 role <select> uses uncontrolled onChange to fire changeRole immediately with no confirm — for a destructive elevation (client -> admin) a confirm step would be safer. Non-blocking, product decision.",
+    "UserManagement.js has no client-side guard that a non-admin viewing this modal would be denied; backend enforces 403 (already curl-verified by main agent) and the sidebar button is role-gated, so this is safe end-to-end.",
+    "KnowledgeBase.js delete confirm state uses a single confirmDelete id — clicking delete on doc A then B correctly moves the confirm to B (state overwrite). But there is no way to cancel the confirm short of closing the modal or clicking a different row; consider a Cancel button next to Confirm for parity with UserManagement.js flow which does have Cancel.",
+    "TrainingDashboard.js recent = i < 3 — assumes GET /feedback is returned newest-first; if server ever changes order the badge highlights the wrong 3. Consider sorting client-side by created_at desc defensively.",
+    "JobsSidebar.js relies on user context always present — no fallback if useAuth() returned {} during a token-refresh race; would throw on user.role read. Not observed, but a small guard (user?.role === 'admin') would harden it."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (frontend-only per request)", "frontend": "100% (all 24 UI assertions passed across 4 flows)"},
+  "test_credentials": "admin@tmait.ca / Admin@1234, reviewer@tmait.ca / Review@1234, client@tmait.ca / Client@1234",
+  "seed_data_creation": "Registered a throwaway user disposable@tmait.ca / Disposable@1234 (role=client) via /api/auth/register, then deleted it via the admin Users modal — no residual test users remain. Uploaded /tmp/test_kb.pdf (~1.4KB) to KB during test, then deleted it — KB baseline (3 docs, 289 chunks) restored. Casey's role toggled client->reviewer->client (restored). No jobs created.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "All three iteration-4 features are working end-to-end: (1) ATOM Training modal correctly shows the 3-most-recent 'In active prompt' badge and stat breakdown; (2) User Management modal correctly applies role changes via PATCH /api/users/{id}, deletes via DELETE /api/users/{id}, and enforces self-protection UI (disabled select + disabled delete on admin's own row); (3) KB per-doc Reindex (POST /api/kb/docs/{id}/reindex) preserves chunk_count and status=indexed; per-doc Delete (DELETE /api/kb/docs/{id}) removes row and rebalances total_chunks. Role gating on sidebar buttons is correct for all 3 roles. Regression verified: client jobs sidebar + open job + Plan/Layout tabs. Minor: tab is labeled 'Map View' in UI, not 'Traffic Map' (noted for future selectors). Also observed OpenAI embeddings must have worked because the uploaded PDF became indexed within a few seconds — user's OPENAI_API_KEY is functional. No timeouts, no 500s, no CORS/auth issues seen during the run.",
+  "rca of the issue": "N/A — no bugs found. All feature acceptance criteria met."
+}

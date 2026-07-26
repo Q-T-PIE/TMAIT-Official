@@ -1,8 +1,8 @@
-import { Plus, SignOut, Database } from "@phosphor-icons/react";
+import { Plus, SignOut, Database, Brain, UsersThree } from "@phosphor-icons/react";
 import { StatusBadge } from "./StatusBadge";
 import { useAuth } from "../context/AuthContext";
 
-export default function JobsSidebar({ jobs, selectedId, onSelect, onNewRequest, onOpenKb }) {
+export default function JobsSidebar({ jobs, selectedId, onSelect, onNewRequest, onOpenKb, onOpenTraining, onOpenUsers }) {
   const { user, logout } = useAuth();
   return (
     <aside data-testid="jobs-sidebar" className="w-80 flex-shrink-0 bg-[#0A0A0A] border-r border-white/10 h-full flex flex-col noise-overlay">
@@ -45,9 +45,21 @@ export default function JobsSidebar({ jobs, selectedId, onSelect, onNewRequest, 
 
       <div className="p-4 border-t border-white/10 space-y-2">
         {(user.role === "admin" || user.role === "reviewer") && (
-          <button data-testid="knowledge-base-button" onClick={onOpenKb}
+          <>
+            <button data-testid="knowledge-base-button" onClick={onOpenKb}
+              className="w-full flex items-center gap-2 text-zinc-300 border border-white/15 px-3 py-2 rounded-sm text-xs font-mono uppercase tracking-[0.12em] hover:border-[#FF5F15] hover:text-white transition-colors duration-150">
+              <Database size={14} /> Knowledge Base
+            </button>
+            <button data-testid="training-dashboard-button" onClick={onOpenTraining}
+              className="w-full flex items-center gap-2 text-zinc-300 border border-white/15 px-3 py-2 rounded-sm text-xs font-mono uppercase tracking-[0.12em] hover:border-[#FF5F15] hover:text-white transition-colors duration-150">
+              <Brain size={14} /> ATOM Training
+            </button>
+          </>
+        )}
+        {user.role === "admin" && (
+          <button data-testid="user-management-button" onClick={onOpenUsers}
             className="w-full flex items-center gap-2 text-zinc-300 border border-white/15 px-3 py-2 rounded-sm text-xs font-mono uppercase tracking-[0.12em] hover:border-[#FF5F15] hover:text-white transition-colors duration-150">
-            <Database size={14} /> Knowledge Base
+            <UsersThree size={14} /> Users
           </button>
         )}
         <div className="flex items-center justify-between">

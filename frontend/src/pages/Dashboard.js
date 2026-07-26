@@ -7,6 +7,8 @@ import TrafficMap from "../components/TrafficMap";
 import SchematicDiagram from "../components/SchematicDiagram";
 import ActionsPanel from "../components/ActionsPanel";
 import KnowledgeBase from "../components/KnowledgeBase";
+import TrainingDashboard from "../components/TrainingDashboard";
+import UserManagement from "../components/UserManagement";
 import { useAuth } from "../context/AuthContext";
 import api, { apiError } from "../lib/api";
 import { toast } from "sonner";
@@ -23,6 +25,8 @@ export default function Dashboard() {
   const [genProgress, setGenProgress] = useState(null);
   const [sheetIdx, setSheetIdx] = useState(0);
   const [showKb, setShowKb] = useState(false);
+  const [showTraining, setShowTraining] = useState(false);
+  const [showUsers, setShowUsers] = useState(false);
 
   const loadJobs = useCallback(() => api.get("/jobs").then((r) => setJobs(r.data)).catch(() => {}), []);
   useEffect(() => { loadJobs(); }, [loadJobs]);
@@ -117,7 +121,8 @@ export default function Dashboard() {
   return (
     <div className="flex h-screen w-full overflow-hidden bg-[#0A0A0A]">
       <JobsSidebar jobs={jobs} selectedId={job?.id} onSelect={openJob}
-        onNewRequest={() => { setView("form"); setJob(null); }} onOpenKb={() => setShowKb(true)} />
+        onNewRequest={() => { setView("form"); setJob(null); }} onOpenKb={() => setShowKb(true)}
+        onOpenTraining={() => setShowTraining(true)} onOpenUsers={() => setShowUsers(true)} />
 
       <main data-testid="workspace" className="flex-1 bg-[#F8F9FA] h-full overflow-y-auto relative z-10 shadow-[0_0_40px_rgba(0,0,0,0.5)]">
         {view === "form" && <div className="p-10"><RequestForm onCreated={onCreated} /></div>}
@@ -231,6 +236,8 @@ export default function Dashboard() {
 
       <ActionsPanel job={job} generating={generating} onGenerate={generate} onJobUpdated={refreshJob} />
       {showKb && <KnowledgeBase onClose={() => setShowKb(false)} />}
+      {showTraining && <TrainingDashboard onClose={() => setShowTraining(false)} />}
+      {showUsers && <UserManagement onClose={() => setShowUsers(false)} />}
     </div>
   );
 }

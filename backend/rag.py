@@ -92,6 +92,47 @@ async def index_builtin_docs():
                 await index_document(path, title, filename)
 
 
+async def reindex_document(doc_id: str) -> dict:
+    doc = await db.kb_docs.find_one({"id": doc_id}, {"_id": 0})
+    if not doc:
+        raise ValueError("Document not found")
+    path = os.path.join(KB_DIR, doc["filename"])
+    if not os.path.exists(path):
+        raise FileNotFoundError("Source file no longer on disk — re-upload the document")
+    await db.kb_docs.update_one({"id": doc_id}, {"$set": {"status": "indexing", "chunk_count": 0}})
+    await db.kb_chunks.delete_many({"doc_id": doc_id})
+    try:
+        chunks = extract_chunks(path)
+        if chunks:
+            embeddings = await embed_texts([c["text"] for c in chunks])
+            records = [
+                {"id": str(uuid.uuid4()), "doc_id": doc_id, "doc_title": doc["title"],
+                 "page": c["page"], "text": c["text"], "embedding": e}
+                for c, e in zip(chunks, embeddings)
+            ]
+            await db.kb_chunks.insert_many(records)
+        await db.kb_docs.update_one({"id": doc_id}, {"$set": {"status": "indexed", "chunk_count": len(chunks)}})
+    except Exception as e:
+        logger.error(f"Reindex failed for {doc['title']}: {e}")
+        await db.kb_docs.update_one({"id": doc_id}, {"$set": {"status": "failed", "error": str(e)}})
+    return await db.kb_docs.find_one({"id": doc_id}, {"_id": 0})
+
+
+async def delete_document(doc_id: str) -> bool:
+    doc = await db.kb_docs.find_one({"id": doc_id}, {"_id": 0})
+    if not doc:
+        return False
+    await db.kb_chunks.delete_many({"doc_id": doc_id})
+    await db.kb_docs.delete_one({"id": doc_id})
+    path = os.path.join(KB_DIR, doc["filename"])
+    try:
+        if os.path.exists(path) and doc["filename"] not in [f for f, _ in BUILTIN_DOCS]:
+            os.remove(path)
+    except OSError:
+        pass
+    return True
+
+
 async def search_kb(query: str, k: int = 8) -> list:
     q_emb = (await embed_texts([query]))[0]
     cursor = db.kb_chunks.find({}, {"_id": 0, "doc_title": 1, "page": 1, "text": 1, "embedding": 1})
