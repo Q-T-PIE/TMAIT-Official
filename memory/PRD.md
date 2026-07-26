@@ -39,6 +39,9 @@ Web app where clients submit traffic-management requests via a form; A.T.O.M (AI
   - ATOM Training dashboard modal (reviewer/admin): feedback stats + list, "In active prompt" badge on 3 most recent (injected into generations)
   - Admin User Management modal: list users + job counts, role changes (PATCH /api/users/{id}), delete with confirm, self-protection
   - KB doc controls: per-doc Reindex + Delete (DELETE /api/kb/docs/{id}, POST /api/kb/docs/{id}/reindex); built-in TMM files preserved on disk
+- **Iteration 5 (2026-06, ✅ DONE):**
+  - Email notifications (Resend): reviewers+admins emailed when a plan hits pending_review (both generate endpoints, fire-and-forget). TEST MODE: sender onboarding@resend.dev → all notifications route to NOTIFY_TEST_RECIPIENT (info@steel-toe-society.com) until user verifies a domain at resend.com/domains, then set SENDER_EMAIL to their domain and clear NOTIFY_TEST_RECIPIENT
+  - Admin-elevation confirm step in User Management (inline confirm before granting admin)
 - P2: Explicit 400 on register with disallowed role (currently coerced to client)
 - P2: CORS explicit origins for production deploy
 - P2: KB doc delete/reindex controls ✅ DONE (iteration 4)

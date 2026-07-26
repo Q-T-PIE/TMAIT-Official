@@ -23,6 +23,7 @@ import rag
 import storage as objstore
 from atom import generate_plan, stream_generate
 from pdf_export import build_plan_pdf
+from emailer import notify_reviewers_pending
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -217,6 +218,7 @@ async def generate(job_id: str, data: GenerateIn, user: dict = Depends(get_curre
         "status": "pending_review", "updated_at": now_iso(),
     }
     await db.jobs.update_one({"id": job_id}, {"$set": update})
+    asyncio.create_task(notify_reviewers_pending({**job, **update}))
     return {**job, **update}
 
 
@@ -243,6 +245,7 @@ async def generate_stream(job_id: str, data: GenerateIn, user: dict = Depends(ge
                         "status": "pending_review", "updated_at": now_iso(),
                     }})
                     full = await db.jobs.find_one({"id": job_id}, {"_id": 0})
+                    asyncio.create_task(notify_reviewers_pending(full))
                     yield sse({"type": "done", "job": full})
                 else:
                     yield sse(evt)

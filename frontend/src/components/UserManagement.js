@@ -10,6 +10,7 @@ export default function UserManagement({ onClose }) {
   const { user: me } = useAuth();
   const [users, setUsers] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
+  const [confirmElevate, setConfirmElevate] = useState(null);
 
   const load = () => api.get("/users").then((r) => setUsers(r.data)).catch((e) => { toast.error(apiError(e)); setUsers([]); });
   useEffect(() => { load(); }, []);
@@ -18,10 +19,16 @@ export default function UserManagement({ onClose }) {
     try {
       await api.patch(`/users/${u.id}`, { role });
       toast.success(`${u.name} is now a ${role}`);
+      setConfirmElevate(null);
       load();
     } catch (e) {
       toast.error(apiError(e));
     }
+  };
+
+  const onRoleChange = (u, role) => {
+    if (role === "admin") setConfirmElevate({ id: u.id, name: u.name });
+    else changeRole(u, role);
   };
 
   const remove = async (u) => {
@@ -63,13 +70,24 @@ export default function UserManagement({ onClose }) {
                   </td>
                   <td className="px-4 py-3">
                     <select data-testid={`user-role-select-${u.id}`} value={u.role} disabled={u.id === me.id}
-                      onChange={(e) => changeRole(u, e.target.value)}
+                      onChange={(e) => onRoleChange(u, e.target.value)}
                       className="bg-black/50 border border-white/15 px-2 py-1.5 rounded-sm font-mono text-[11px] uppercase tracking-wider focus:outline-none focus:ring-1 focus:ring-[#FF5F15] disabled:opacity-40"
                       style={{ color: ROLE_COLORS[u.role] }}>
                       <option value="client">client</option>
                       <option value="reviewer">reviewer</option>
                       <option value="admin">admin</option>
                     </select>
+                    {confirmElevate?.id === u.id && (
+                      <div data-testid={`elevate-confirm-${u.id}`} className="mt-2 border border-[#FF5F15]/60 bg-[#FF5F15]/10 rounded-sm px-3 py-2">
+                        <p className="font-mono text-[10px] uppercase tracking-wider text-[#FF5F15] mb-1.5">Grant full admin access?</p>
+                        <div className="flex gap-2">
+                          <button data-testid={`elevate-confirm-button-${u.id}`} onClick={() => changeRole(u, "admin")}
+                            className="bg-[#FF5F15] text-black px-3 py-1 rounded-sm font-mono text-[10px] uppercase tracking-wider font-bold">Confirm</button>
+                          <button data-testid={`elevate-cancel-button-${u.id}`} onClick={() => setConfirmElevate(null)}
+                            className="text-zinc-400 font-mono text-[10px] uppercase hover:text-white">Cancel</button>
+                        </div>
+                      </div>
+                    )}
                   </td>
                   <td className="px-4 py-3 font-mono text-xs text-zinc-300">{u.job_count}</td>
                   <td className="px-4 py-3 font-mono text-[10px] text-zinc-500">{new Date(u.created_at).toLocaleDateString()}</td>
