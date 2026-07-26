@@ -29,8 +29,10 @@ Web app where clients submit traffic-management requests via a form; A.T.O.M (AI
 - Tested: iteration_1 — 100% backend (25/25) and frontend pass
 
 ## Backlog / Next Tasks
-- P1: Client file attachments on request form (needs object storage integration)
-- P1: Streaming generation progress (SSE) instead of long request wait
+- **Iteration 3 (2026-06, all ✅ DONE, tested iteration_3 100% — 37/37 backend + all UI flows):**
+  - Multi-sheet layouts: plan.layouts array (one TC sheet per intersection approach/stage), sheet selector tabs TC-1/TC-2, all sheets embedded in exported PDF; legacy plan.layout backward compatible
+  - Request-form attachments: pdf/png/jpg/jpeg/webp/txt ≤10MB via Emergent Object Storage (EMERGENT_LLM_KEY), downloadable chips in workspace, PDF/txt text excerpts fed into ATOM generation prompt
+  - Streaming generation: SSE POST /api/jobs/{id}/generate/stream (stage/delta/done/error events), frontend live stage badges + streaming text preview
 - P1: Include map snapshot image inside exported PDF ✅ DONE differently — TMM schematic Layout Diagram (SVG) embedded as PNG in PDF
 - **TMM Layout Diagram (2026-06):** New "Layout Diagram" workspace tab — SVG traffic control layout sheet matching BC TMM 2020 conventions: diamond signs with real C-designations, cone taper (LM), buffer (B), hatched work area, downstream taper (LD), sign spacing (A) per TMM Tables A/B by speed, TCP/FAB symbols, legend, title block. Plan JSON extended with `layout` spec. Diagram captured browser-side (svgToPng) and embedded in exported PDF (POST /api/jobs/{id}/export). Tested: iteration_2 — 100% pass.
 - P2: Admin user management UI; feedback/training dashboard page
