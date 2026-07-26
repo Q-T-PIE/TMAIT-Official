@@ -35,11 +35,14 @@ Web app where clients submit traffic-management requests via a form; A.T.O.M (AI
   - Streaming generation: SSE POST /api/jobs/{id}/generate/stream (stage/delta/done/error events), frontend live stage badges + streaming text preview
 - P1: Include map snapshot image inside exported PDF ✅ DONE differently — TMM schematic Layout Diagram (SVG) embedded as PNG in PDF
 - **TMM Layout Diagram (2026-06):** New "Layout Diagram" workspace tab — SVG traffic control layout sheet matching BC TMM 2020 conventions: diamond signs with real C-designations, cone taper (LM), buffer (B), hatched work area, downstream taper (LD), sign spacing (A) per TMM Tables A/B by speed, TCP/FAB symbols, legend, title block. Plan JSON extended with `layout` spec. Diagram captured browser-side (svgToPng) and embedded in exported PDF (POST /api/jobs/{id}/export). Tested: iteration_2 — 100% pass.
-- P2: Admin user management UI; feedback/training dashboard page
-- P2: Reject → revise → regenerate loop UX ✅ DONE (rejection feedback + previous plan injected into revision prompt; "Revise & Regenerate" button)
+- **Iteration 4 (2026-06, all ✅ DONE, tested iteration_4 100%):**
+  - ATOM Training dashboard modal (reviewer/admin): feedback stats + list, "In active prompt" badge on 3 most recent (injected into generations)
+  - Admin User Management modal: list users + job counts, role changes (PATCH /api/users/{id}), delete with confirm, self-protection
+  - KB doc controls: per-doc Reindex + Delete (DELETE /api/kb/docs/{id}, POST /api/kb/docs/{id}/reindex); built-in TMM files preserved on disk
 - P2: Explicit 400 on register with disallowed role (currently coerced to client)
 - P2: CORS explicit origins for production deploy
-- P2: KB doc delete/reindex controls
+- P2: KB doc delete/reindex controls ✅ DONE (iteration 4)
+- ✅ Reject → revise → regenerate loop (rejection feedback + previous plan injected into revision prompt)
 
 ## Notes
 - Frontend is React JS (template is CRA JS, not TS) — functionality identical to spec.
