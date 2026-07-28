@@ -1,0 +1,45 @@
+{
+  "summary": "Bad-gateway bug verification: PASSED. Full end-to-end verification from external REACT_APP_BACKEND_URL (https://plan-workspace.preview.emergentagent.com) shows the app is fully reachable through the k8s ingress. Zero 502/503/504 responses observed across page load, /api/, login (cookie + Bearer), jobs list, job detail, layout SVG, Leaflet map tiles+markers, PDF blob download, and post-reload session. Client and Reviewer logins both succeed and both roles see both seed jobs ('Watermain repair - Lonsdale Ave' approved, 'Signal upgrade - Marine Dr & Capilano Rd' pending review). LLM/generation flows intentionally not exercised per request.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_auth.py",
+    "/app/backend/tests/test_cookie_auth.py",
+    "/app/backend/tests/test_jobs_flow.py",
+    "/app/backend/tests/test_new_features.py"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Not part of this pass — bug scope was strictly gateway reachability (no LLM/plan generation)."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "client@tmait.ca / Client@1234, reviewer@tmait.ca / Review@1234 (both work end-to-end via cookie + Bearer)",
+  "seed_data_creation": "None. Used existing seed jobs (Watermain repair, Signal upgrade).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Gateway is healthy. If the user reports 'bad gateway' again, first check `supervisorctl status` — the preview pod idles and the very first request after wake can 502 for a few seconds until backend/frontend supervisor workers are RUNNING. Once services show RUNNING with >30s uptime, external URL serves 200 on /, /api/, /api/auth/login, /api/jobs, /api/jobs/{id}, /api/jobs/{id}/export (PDF), and static tiles.leaflet-tile requests. Note: correct PDF export route is GET/POST /api/jobs/{job_id}/export (not /export/pdf). Cookie httpOnly auth confirmed working through the ingress (/api/auth/me returns 200 with cookie set from /api/auth/login).",
+  "rca of the issue": "User's 'bad gateway' report was consistent with the preview pod being cold — supervisor logs showed backend/frontend had just restarted (~50s uptime at time of complaint). During cold-boot the k8s ingress returns 502 until upstream FastAPI/CRA dev server bind their ports. All independent probes now show 200s and end-to-end user flows (login → jobs → plan document with citations → layout SVG → Leaflet map with 12 markers + 9 tiles → 153KB valid PDF download → reload session persistence via httpOnly cookie → reviewer role login) all succeed with 0 gateway errors captured by the Playwright response listener. No code change needed; issue resolved by pod being warm.",
+  "verified_flows": [
+    "GET / -> 200 (frontend HTML)",
+    "GET /api/ -> 200 {\"service\":\"TMAIT API\",\"status\":\"ok\"}",
+    "POST /api/auth/login (client) -> 200, JWT + httpOnly cookie",
+    "POST /api/auth/login (reviewer) -> 200, JWT + httpOnly cookie",
+    "GET /api/auth/me with cookie -> 200",
+    "GET /api/jobs -> 200, 2 jobs (both seed jobs present)",
+    "GET /api/jobs/{id} -> 200, plan + sources present",
+    "GET /api/jobs/{id}/export -> 200, application/pdf, %PDF-1.4 magic, 10.7KB (curl) / 153KB (UI with diagram PNGs)",
+    "UI: Plan Document tab renders 8+ sections and 6 grounding source citations (TMM 2020 pp. 43,68,108,64,55,123)",
+    "UI: Layout Diagram tab renders SVG with legend + taper/buffer/work-area geometry",
+    "UI: Map View tab renders Leaflet container with 9 tiles and 12 markers",
+    "UI: Reload -> still logged in (cookie-based session persists through gateway)",
+    "UI: Reviewer login -> dashboard loads, both jobs visible"
+  ]
+}
