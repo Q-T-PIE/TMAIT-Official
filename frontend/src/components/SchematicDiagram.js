@@ -129,8 +129,8 @@ export default function SchematicDiagram({ layout, job, svgId = "layout-svg", sh
           const x = pavL + (i + 1) * laneW;
           const isCentre = twoWay && i + 1 === oppLanes;
           return isCentre
-            ? <line key={i} x1={x} y1={top} x2={x} y2={yBot} stroke="#EAB308" strokeWidth="3" />
-            : <line key={i} x1={x} y1={top} x2={x} y2={yBot} stroke="#999" strokeWidth="1.5" strokeDasharray="14 12" />;
+            ? <line key={`lane-${x}`} x1={x} y1={top} x2={x} y2={yBot} stroke="#EAB308" strokeWidth="3" />
+            : <line key={`lane-${x}`} x1={x} y1={top} x2={x} y2={yBot} stroke="#999" strokeWidth="1.5" strokeDasharray="14 12" />;
         })}
 
         {/* lane direction arrows */}
@@ -139,7 +139,7 @@ export default function SchematicDiagram({ layout, job, svgId = "layout-svg", sh
           const opposing = twoWay && i < oppLanes;
           const isClosed = closedLeft ? i < closedCount : i >= lanes - closedCount;
           if (isClosed) return null;
-          return <LaneArrow key={i} x={cx} y={opposing ? top + 18 : yBot - 45} down={opposing} />;
+          return <LaneArrow key={`arrow-${cx}`} x={cx} y={opposing ? top + 18 : yBot - 45} down={opposing} />;
         })}
 
         {/* zone labels left */}
@@ -148,9 +148,9 @@ export default function SchematicDiagram({ layout, job, svgId = "layout-svg", sh
         ))}
 
         {/* cones */}
-        {taperCones.map((c, i) => <Cone key={`t${i}`} {...c} />)}
-        {edgeCones.map((c, i) => <Cone key={`e${i}`} {...c} />)}
-        {ldCones.map((c, i) => <Cone key={`d${i}`} {...c} />)}
+        {taperCones.map((c) => <Cone key={`t-${c.x.toFixed(1)}-${c.y.toFixed(1)}`} {...c} />)}
+        {edgeCones.map((c) => <Cone key={`e-${c.x.toFixed(1)}-${c.y.toFixed(1)}`} {...c} />)}
+        {ldCones.map((c) => <Cone key={`d-${c.x.toFixed(1)}-${c.y.toFixed(1)}`} {...c} />)}
 
         {/* work area */}
         <rect x={workL} y={yWorkTop + 8} width={workR - workL} height={zWork - 16} fill="url(#hatch)" stroke={SIGN_ORANGE} strokeWidth="2" />
@@ -173,12 +173,12 @@ export default function SchematicDiagram({ layout, job, svgId = "layout-svg", sh
         {upSigns.map((s, i) => {
           const side = s.side === "both" ? signSideDefault : (s.side || signSideDefault);
           const y = yBot - 42 - i * 85;
-          return <Sign key={i} x={signX(side)} y={y} sign={s} side={side} />;
+          return <Sign key={`up-${s.designation}-${i}`} x={signX(side)} y={y} sign={s} side={side} />;
         })}
         {/* downstream signs */}
         {downSigns.map((s, i) => {
           const side = s.side || signSideDefault;
-          return <Sign key={i} x={signX(side)} y={top + 34 + i * 50} sign={s} side={side} />;
+          return <Sign key={`down-${s.designation}-${i}`} x={signX(side)} y={top + 34 + i * 50} sign={s} side={side} />;
         })}
 
         {/* dimensions */}

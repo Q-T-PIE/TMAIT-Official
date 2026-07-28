@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { X, UsersThree, Trash } from "@phosphor-icons/react";
 import api, { apiError } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
@@ -12,8 +12,11 @@ export default function UserManagement({ onClose }) {
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [confirmElevate, setConfirmElevate] = useState(null);
 
-  const load = () => api.get("/users").then((r) => setUsers(r.data)).catch((e) => { toast.error(apiError(e)); setUsers([]); });
-  useEffect(() => { load(); }, []);
+  const load = useCallback(
+    () => api.get("/users").then((r) => setUsers(r.data)).catch((e) => { toast.error(apiError(e)); setUsers([]); }),
+    []
+  );
+  useEffect(() => { load(); }, [load]);
 
   const changeRole = async (u, role) => {
     try {
@@ -58,7 +61,7 @@ export default function UserManagement({ onClose }) {
           <table className="w-full text-sm" data-testid="users-table">
             <thead>
               <tr className="bg-black/40 font-mono text-[10px] uppercase tracking-[0.15em] text-zinc-400">
-                {["User", "Role", "Jobs", "Joined", ""].map((h, i) => <th key={i} className="text-left px-4 py-3 font-medium">{h}</th>)}
+                {["User", "Role", "Jobs", "Joined", "Actions"].map((h) => <th key={h} className="text-left px-4 py-3 font-medium">{h === "Actions" ? "" : h}</th>)}
               </tr>
             </thead>
             <tbody>

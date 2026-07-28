@@ -21,6 +21,9 @@ function makeIcon(type) {
   });
 }
 
+const CLOSURE_STYLE = { color: "#EF4444", weight: 6, dashArray: "10 8", opacity: 0.85 };
+const DETOUR_STYLE = { color: "#3B82F6", weight: 4, opacity: 0.8 };
+
 export default function TrafficMap({ features }) {
   const center = features?.center || { lat: 49.2827, lng: -123.1207 };
   const markers = features?.markers || [];
@@ -34,10 +37,10 @@ export default function TrafficMap({ features }) {
           attribution='&copy; OpenStreetMap &copy; CARTO'
           url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
         />
-        {closure.length > 1 && <Polyline positions={closure} pathOptions={{ color: "#EF4444", weight: 6, dashArray: "10 8", opacity: 0.85 }} />}
-        {detour.length > 1 && <Polyline positions={detour} pathOptions={{ color: "#3B82F6", weight: 4, opacity: 0.8 }} />}
+        {closure.length > 1 && <Polyline positions={closure} pathOptions={CLOSURE_STYLE} />}
+        {detour.length > 1 && <Polyline positions={detour} pathOptions={DETOUR_STYLE} />}
         {markers.map((m, i) => (
-          <Marker key={i} position={[m.lat, m.lng]} icon={makeIcon(m.type)}>
+          <Marker key={`${m.type}-${m.lat}-${m.lng}-${i}`} position={[m.lat, m.lng]} icon={makeIcon(m.type)}>
             <Popup><span className="font-mono text-xs uppercase">{m.type}</span><br />{m.label}</Popup>
           </Marker>
         ))}

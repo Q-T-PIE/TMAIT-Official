@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import api from "../lib/api";
 
 const AuthContext = createContext(null);
@@ -7,34 +7,34 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null); // null=checking, false=logged out
 
   useEffect(() => {
-    const token = localStorage.getItem("tmait_token");
-    if (!token) return setUser(false);
-    api.get("/auth/me").then((r) => setUser(r.data)).catch(() => {
-      localStorage.removeItem("tmait_token");
-      setUser(false);
-    });
+    api.get("/auth/me")
+      .then((r) => setUser(r.data))
+      .catch(() => setUser(false));
   }, []);
 
   const login = async (email, password) => {
     const { data } = await api.post("/auth/login", { email, password });
-    localStorage.setItem("tmait_token", data.access_token);
     setUser(data.user);
   };
 
   const register = async (name, email, password, role) => {
     const { data } = await api.post("/auth/register", { name, email, password, role });
-    localStorage.setItem("tmait_token", data.access_token);
     setUser(data.user);
   };
 
   const logout = async () => {
-    try { await api.post("/auth/logout"); } catch {}
-    localStorage.removeItem("tmait_token");
+    try {
+      await api.post("/auth/logout");
+    } catch (e) {
+      console.error("Logout request failed:", e);
+    }
     setUser(false);
   };
 
+  const value = useMemo(() => ({ user, login, register, logout }), [user]); // eslint-disable-line react-hooks/exhaustive-deps
+
   return (
-    <AuthContext.Provider value={{ user, login, register, logout }}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );

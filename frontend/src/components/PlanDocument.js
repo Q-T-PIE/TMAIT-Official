@@ -64,7 +64,7 @@ export default function PlanDocument({ plan, editable, onSave }) {
           </thead>
           <tbody>
             {(p.signage_schedule || []).map((s, i) => (
-              <tr key={i} className={i % 2 ? "bg-black/[0.02]" : "bg-white"}>
+              <tr key={`${s.sign}-${s.location}-${i}`} className={i % 2 ? "bg-black/[0.02]" : "bg-white"}>
                 <td className="px-3 py-2.5 font-mono text-xs font-bold text-[#0A0A0A]">{s.sign}</td>
                 <td className="px-3 py-2.5 text-zinc-700 font-body">{s.location}</td>
                 <td className="px-3 py-2.5 font-mono text-xs">{s.spacing_m}</td>
@@ -78,7 +78,7 @@ export default function PlanDocument({ plan, editable, onSave }) {
       {secTitle("7 — Step-by-Step Setup")}
       <ol className="space-y-2" data-testid="setup-steps">
         {(p.setup_steps || []).map((s, i) => (
-          <li key={i} className="flex gap-3 text-sm text-zinc-700 font-body leading-relaxed">
+          <li key={`step-${i}-${String(s).slice(0, 24)}`} className="flex gap-3 text-sm text-zinc-700 font-body leading-relaxed">
             <span className="font-mono text-xs font-bold text-[#FF5F15] mt-0.5 flex-shrink-0">{String(i + 1).padStart(2, "0")}</span>{s}
           </li>
         ))}
@@ -87,7 +87,7 @@ export default function PlanDocument({ plan, editable, onSave }) {
       {secTitle("9 — TMM 2020 Compliance Citations")}
       <div className="space-y-2" data-testid="tmm-citations">
         {(p.tmm_citations || []).map((c, i) => (
-          <div key={i} className="border-l-2 border-[#FF5F15] bg-[#FF5F15]/[0.06] px-4 py-3">
+          <div key={`${c.section}-${i}`} className="border-l-2 border-[#FF5F15] bg-[#FF5F15]/[0.06] px-4 py-3">
             <p className="font-mono text-[11px] uppercase tracking-[0.1em] font-bold text-[#0A0A0A]">{c.section}</p>
             <p className="text-sm text-zinc-700 font-body mt-1 leading-relaxed">{c.requirement}</p>
           </div>

@@ -10,6 +10,19 @@ ORANGE = colors.HexColor("#FF5F15")
 DARK = colors.HexColor("#0A0A0A")
 
 
+def _styled_table(rows, col_widths, extra_style=None):
+    t = Table(rows, colWidths=col_widths)
+    style = [
+        ("BACKGROUND", (0, 0), (-1, 0), DARK),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ("FONTSIZE", (0, 0), (-1, -1), 8),
+        ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+    ]
+    t.setStyle(TableStyle(style + (extra_style or [])))
+    return t
+
+
 def build_plan_pdf(job: dict, diagram_pngs: list = None) -> bytes:
     plan = job.get("plan") or {}
     buf = io.BytesIO()
@@ -45,15 +58,7 @@ def build_plan_pdf(job: dict, diagram_pngs: list = None) -> bytes:
         rows = [["Sign", "Location", "Spacing", "Notes"]] + [
             [Paragraph(str(s.get(k, "")), body) for k in ("sign", "location", "spacing_m", "notes")] for s in signs
         ]
-        t = Table(rows, colWidths=[1.6 * inch, 1.9 * inch, 1.0 * inch, 2.2 * inch])
-        t.setStyle(TableStyle([
-            ("BACKGROUND", (0, 0), (-1, 0), DARK),
-            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-            ("FONTSIZE", (0, 0), (-1, -1), 8),
-            ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
-            ("VALIGN", (0, 0), (-1, -1), "TOP"),
-        ]))
-        el.append(t)
+        el.append(_styled_table(rows, [1.6 * inch, 1.9 * inch, 1.0 * inch, 2.2 * inch]))
 
     steps = plan.get("setup_steps") or []
     if steps:
@@ -91,14 +96,7 @@ def build_plan_pdf(job: dict, diagram_pngs: list = None) -> bytes:
         rows = [["Type", "Label", "Lat", "Lng"]] + [
             [str(m.get("type", "")), Paragraph(str(m.get("label", "")), body), f"{m.get('lat', 0):.5f}", f"{m.get('lng', 0):.5f}"] for m in markers
         ]
-        t = Table(rows, colWidths=[1.1 * inch, 3.0 * inch, 1.3 * inch, 1.3 * inch])
-        t.setStyle(TableStyle([
-            ("BACKGROUND", (0, 0), (-1, 0), DARK),
-            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-            ("FONTSIZE", (0, 0), (-1, -1), 8),
-            ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
-        ]))
-        el.append(t)
+        el.append(_styled_table(rows, [1.1 * inch, 3.0 * inch, 1.3 * inch, 1.3 * inch]))
 
     if job.get("review_feedback"):
         el.append(Paragraph("Reviewer Feedback", h2))

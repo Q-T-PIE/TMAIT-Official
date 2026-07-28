@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { UploadSimple, FilePdf, X, ArrowsClockwise, Trash } from "@phosphor-icons/react";
 import api, { apiError } from "../lib/api";
 import { toast } from "sonner";
@@ -10,12 +10,12 @@ export default function KnowledgeBase({ onClose }) {
   const [busyDoc, setBusyDoc] = useState(null);
   const fileRef = useRef();
 
-  const load = () => api.get("/kb/docs").then((r) => setData(r.data)).catch(() => {});
+  const load = useCallback(() => api.get("/kb/docs").then((r) => setData(r.data)).catch(() => {}), []);
   useEffect(() => {
     load();
-    const t = setInterval(load, 5000);
-    return () => clearInterval(t);
-  }, []);
+    const timer = setInterval(load, 5000);
+    return () => clearInterval(timer);
+  }, [load]);
 
   const upload = async (e) => {
     const file = e.target.files?.[0];

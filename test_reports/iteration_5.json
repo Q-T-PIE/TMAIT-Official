@@ -1,0 +1,32 @@
+{
+  "summary": "Code-review fix verification (auth migration localStorage->httpOnly cookies). Ran full backend regression (42/42 pytest passed incl. 5 new cookie-auth tests) AND end-to-end browser tests. CRITICAL AUTH REGRESSION VERIFIED: login (client) sets no 'tmait_token' in localStorage (only PostHog key present), sets access_token httpOnly Secure SameSite=none cookie; /auth/me returns 200 via cookie only; RELOAD -> session persists (200); logout -> cookie cleared, /auth/me=401; re-login works. SSE generation with cookie auth: created new TEST_SSE Pothole job as client, clicked Generate Plan (GPT-5.2), all 3 stage badges (stage-retrieving, stage-geocoding, stage-drafting) rendered, stream-preview showed streaming text, generation completed with plan+layout(10 SVGs)+map(14 markers)+6 TMM citations. Attachment download (Signal upgrade -> site_memo.txt) via cookie auth: 172 bytes. PDF export (Watermain repair) via cookie auth: 153,861-byte valid PDF (magic %PDF). Multi-sheet layout (Signal upgrade) shows 2 sheet-tabs (TC-1 Marine Dr / TC-2 Capilano Rd). Reviewer approve flow: opened TEST_SSE job, entered feedback, clicked approve -> status=approved AND ATOM Training modal shows new 'IN ACTIVE PROMPT' entry at top. Admin regression: Users modal loads (admin+client emails visible), KB modal loads (TMM docs visible). Backend regression: /auth/login returns access_token + Set-Cookie(HttpOnly Secure SameSite=none), /auth/me works with Bearer AND cookie-jar independently.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_cookie_auth.py",
+    "/app/backend/tests/test_auth.py",
+    "/app/backend/tests/test_jobs_flow.py",
+    "/app/backend/tests/test_new_features.py",
+    "/app/test_reports/pytest/pytest_results.xml",
+    "/app/test_reports/downloads/pdf_watermain_iter5.pdf"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "AuthContext.js:34 uses `useMemo(..., [user])` with eslint-disable — technically login/register/logout are stable closures reading state from the closure's `user`, but they call `setUser` directly so re-creating them per render is fine; the eslint-disable is safe here.",
+    "server.py:90 set_auth_cookie sets samesite='none', secure=True, path='/'. Correct for cross-site cookie auth from the preview domain. Confirmed via Set-Cookie header inspection.",
+    "auth.py:28 get_current_user reads cookie first, then Authorization Bearer fallback. Correct precedence; matches spec.",
+    "sse.js:8 throws generic 'Generation failed (HTTP N)' without reading response body — if backend returns a JSON detail (e.g. quota exceeded), UI shows only the status code. Consider awaiting res.json() for error surface. Non-blocking.",
+    "server.py:130 POST /auth/logout deletes cookie without requiring auth — this is fine (idempotent) but means an unauthenticated client hitting logout still gets 200. Acceptable.",
+    "Dashboard.js flags 5 pre-existing TEST_ prefixed draft jobs in client sidebar (leftovers from prior iterations). Not a regression from this iteration; consider a one-shot cleanup script if UI clutter matters."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_cookie_auth.py"
+  ],
+  "success_rate": {"backend": "100% (42/42)", "frontend": "100% (all 8 review-requested flows passed)"},
+  "test_credentials": "admin@tmait.ca / Admin@1234, reviewer@tmait.ca / Review@1234, client@tmait.ca / Client@1234",
+  "seed_data_creation": "Created ONE new job via UI as client: 'TEST_SSE Pothole repair — Esplanade Ave' (id saved to /tmp/sse_job_id.txt = ae1f0e62-7d70-483a-b761-2d7adb59bcc4). SSE-generated, then reviewer-approved with feedback 'TEST_ Cookie-auth SSE-generated plan is compliant with TMM 2020.' Status=approved. One LLM generation total (matches ONE generation max instruction). Also created some TEST_ users via previous backend tests (auto-registered, kept for regression).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Auth is fully cookie-based end-to-end. Bearer still supported for pytest. The new TEST_SSE Pothole job (ae1f0e62-...) is now an APPROVED job with plan+layout+map+citations and can be used for future regression (PDF export, plan render, review-feedback display). Watermain repair (approved, single-sheet) and Signal upgrade (pending, multi-sheet with 3 attachments) remain the primary regression fixtures. Multi-sheet job renders sheet-tab-{0} and sheet-tab-{1}. Stage badges use testids stage-retrieving/stage-geocoding/stage-drafting and stream-preview shows live text. Note: sidebar has 5 pre-existing TEST_ draft jobs (no plan) from prior iterations — safe to ignore or clean up. Email notification (Resend) fires on generation done, but did not break the flow. localStorage never contains tmait_token after login (only PostHog analytics key).",
+  "rca of the issue": "N/A — no bugs found. Auth migration verified: (1) cookie set correctly with HttpOnly+Secure+SameSite=none, (2) fetch/axios use credentials:'include' & withCredentials:true so cookie rides on SSE and blob-download requests, (3) session survives full page reload (React state re-hydrated via GET /auth/me), (4) logout deletes cookie server-side. Bearer fallback in auth.py:30 continues to work for pytest scripts."
+}

@@ -1,3 +1,13 @@
+export async function collectLayoutPngs() {
+  const pngs = [];
+  for (let i = 0; i < 12; i++) {
+    const el = document.getElementById(`layout-svg-export-${i}`);
+    if (!el) break;
+    pngs.push(await svgToPngDataUrl(el));
+  }
+  return pngs;
+}
+
 export async function svgToPngDataUrl(svgEl, scale = 2) {
   const xml = new XMLSerializer().serializeToString(svgEl);
   const svg64 = btoa(unescape(encodeURIComponent(xml)));

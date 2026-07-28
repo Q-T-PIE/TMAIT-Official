@@ -9,6 +9,8 @@ import ActionsPanel from "../components/ActionsPanel";
 import KnowledgeBase from "../components/KnowledgeBase";
 import TrainingDashboard from "../components/TrainingDashboard";
 import UserManagement from "../components/UserManagement";
+import GeneratingCard from "../components/GeneratingCard";
+import { streamGeneration } from "../lib/sse";
 import { useAuth } from "../context/AuthContext";
 import api, { apiError } from "../lib/api";
 import { toast } from "sonner";
@@ -57,31 +59,22 @@ export default function Dashboard() {
     setGenerating(true);
     setGenProgress({ stage: "retrieving", text: "", chars: 0 });
     try {
-      const res = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/jobs/${job.id}/generate/stream`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("tmait_token")}` },
-        body: JSON.stringify({ model }),
-      });
-      if (!res.ok || !res.body) throw new Error(`Generation failed (HTTP ${res.status})`);
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let buf = "", finished = false;
-      while (!finished) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        buf += decoder.decode(value, { stream: true });
-        const parts = buf.split("\n\n");
-        buf = parts.pop();
-        for (const part of parts) {
-          const line = part.split("\n").find((l) => l.startsWith("data: "));
-          if (!line) continue;
-          const evt = JSON.parse(line.slice(6));
-          if (evt.type === "stage") setGenProgress((p) => ({ ...p, stage: evt.stage }));
-          else if (evt.type === "delta") setGenProgress((p) => ({ stage: "drafting", text: (p.text + evt.text).slice(-700), chars: p.chars + evt.text.length }));
-          else if (evt.type === "done") { setJob(evt.job); setSheetIdx(0); loadJobs(); toast.success("ATOM generated a TMM 2020-compliant plan"); finished = true; }
-          else if (evt.type === "error") { toast.error(evt.detail); refreshJob(); finished = true; }
+      await streamGeneration(job.id, model, (evt) => {
+        if (evt.type === "stage") setGenProgress((p) => ({ ...p, stage: evt.stage }));
+        else if (evt.type === "delta") setGenProgress((p) => ({ stage: "drafting", text: (p.text + evt.text).slice(-700), chars: p.chars + evt.text.length }));
+        else if (evt.type === "done") {
+          setJob(evt.job);
+          setSheetIdx(0);
+          loadJobs();
+          toast.success("ATOM generated a TMM 2020-compliant plan");
+          return false;
+        } else if (evt.type === "error") {
+          toast.error(evt.detail);
+          refreshJob();
+          return false;
         }
-      }
+        return true;
+      });
     } catch (e) {
       toast.error(e.message || "Generation failed");
       refreshJob();
@@ -163,33 +156,7 @@ export default function Dashboard() {
               </div>
             )}
 
-            {generating && (
-              <div className="border border-black/10 bg-white rounded-sm p-8 max-w-2xl" data-testid="generating-state">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-3 h-3 bg-[#FF5F15] rounded-full animate-ping" />
-                  <p className="font-heading text-lg font-bold text-[#0A0A0A]">A.T.O.M is working…</p>
-                </div>
-                <div className="flex flex-wrap items-center gap-2 mb-4">
-                  {[["retrieving", "TMM Retrieval"], ["geocoding", "Geocoding"], ["drafting", "Drafting Plan"]].map(([k, label]) => {
-                    const order = ["retrieving", "geocoding", "drafting"];
-                    const active = genProgress?.stage === k;
-                    const done = order.indexOf(genProgress?.stage) > order.indexOf(k);
-                    return (
-                      <span key={k} data-testid={`stage-${k}`}
-                        className={`font-mono text-[10px] uppercase tracking-[0.15em] px-2.5 py-1 border rounded-sm ${active ? "border-[#FF5F15] text-[#FF5F15] animate-pulse" : done ? "border-[#10B981] text-[#10B981]" : "border-black/15 text-zinc-400"}`}>
-                        {done ? "✓ " : ""}{label}
-                      </span>
-                    );
-                  })}
-                  {genProgress?.chars > 0 && <span className="font-mono text-[10px] text-zinc-500">{genProgress.chars.toLocaleString()} chars</span>}
-                </div>
-                {genProgress?.text ? (
-                  <pre data-testid="stream-preview" className="bg-[#0A0A0A] text-[#34d399] font-mono text-[10px] leading-relaxed p-4 rounded-sm max-h-44 overflow-hidden whitespace-pre-wrap">{genProgress.text}</pre>
-                ) : (
-                  <p className="text-sm text-zinc-500 font-body leading-relaxed">Retrieving TMM 2020 excerpts → grounding signage & taper requirements → composing plan + layout sheets.</p>
-                )}
-              </div>
-            )}
+            {generating && <GeneratingCard progress={genProgress} />}
 
             {job.plan && !generating && (
               <>
@@ -208,7 +175,7 @@ export default function Dashboard() {
                       {sheets.length > 1 && (
                         <div className="flex border border-black/15 rounded-sm w-fit mb-4 overflow-hidden" data-testid="sheet-tabs">
                           {sheets.map((s, i) => (
-                            <button key={i} data-testid={`sheet-tab-${i}`} onClick={() => setSheetIdx(i)}
+                            <button key={`tc-${s.sheet_title || s.layout_title || i}`} data-testid={`sheet-tab-${i}`} onClick={() => setSheetIdx(i)}
                               className={`px-4 py-2 text-[10px] font-mono uppercase tracking-[0.12em] transition-colors duration-150 ${sheetIdx === i ? "bg-[#FF5F15] text-black font-bold" : "bg-white text-zinc-600 hover:text-black"}`}>
                               TC-{i + 1}{s.sheet_title ? ` · ${s.sheet_title.slice(0, 24)}` : ""}
                             </button>
@@ -224,7 +191,7 @@ export default function Dashboard() {
                 {sheets.length > 0 && (
                   <div style={{ position: "absolute", left: -20000, top: 0 }} aria-hidden="true">
                     {sheets.map((l, i) => (
-                      <SchematicDiagram key={i} layout={l} job={job} svgId={`layout-svg-export-${i}`} sheetIndex={i} sheetCount={sheets.length} />
+                      <SchematicDiagram key={`export-${l.sheet_title || l.layout_title || i}`} layout={l} job={job} svgId={`layout-svg-export-${i}`} sheetIndex={i} sheetCount={sheets.length} />
                     ))}
                   </div>
                 )}

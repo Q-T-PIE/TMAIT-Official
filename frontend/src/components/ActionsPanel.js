@@ -3,7 +3,7 @@ import { Lightning, CheckCircle, XCircle, FilePdf, Cpu } from "@phosphor-icons/r
 import { StatusBadge } from "./StatusBadge";
 import { useAuth } from "../context/AuthContext";
 import api, { apiError } from "../lib/api";
-import { svgToPngDataUrl } from "../lib/svgToPng";
+import { collectLayoutPngs } from "../lib/svgToPng";
 import { toast } from "sonner";
 
 export default function ActionsPanel({ job, onJobUpdated, generating, onGenerate }) {
@@ -31,12 +31,10 @@ export default function ActionsPanel({ job, onJobUpdated, generating, onGenerate
     try {
       let diagram_pngs = [];
       try {
-        for (let i = 0; i < 12; i++) {
-          const el = document.getElementById(`layout-svg-export-${i}`);
-          if (!el) break;
-          diagram_pngs.push(await svgToPngDataUrl(el));
-        }
-      } catch {}
+        diagram_pngs = await collectLayoutPngs();
+      } catch (err) {
+        console.error("Layout diagram capture failed, exporting without diagrams:", err);
+      }
       const res = await api.post(`/jobs/${job.id}/export`, { diagram_pngs }, { responseType: "blob" });
       const url = URL.createObjectURL(res.data);
       const a = document.createElement("a");
@@ -133,7 +131,7 @@ export default function ActionsPanel({ job, onJobUpdated, generating, onGenerate
               <span className={label}>Grounding Sources (RAG)</span>
               <div className="space-y-1.5" data-testid="rag-sources">
                 {job.sources.slice(0, 6).map((s, i) => (
-                  <p key={i} className="font-mono text-[10px] text-zinc-400 leading-relaxed">
+                  <p key={`${s.doc_title}-${s.page}-${i}`} className="font-mono text-[10px] text-zinc-400 leading-relaxed">
                     <span className="text-[#FF5F15]">›</span> {s.doc_title.replace(" (BC MoTI)", "")} · p.{s.page}
                   </p>
                 ))}
