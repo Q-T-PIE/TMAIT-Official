@@ -42,6 +42,12 @@ Web app where clients submit traffic-management requests via a form; A.T.O.M (AI
 - **Iteration 5 (2026-06, ✅ DONE):**
   - Email notifications (Resend): reviewers+admins emailed when a plan hits pending_review (both generate endpoints, fire-and-forget). PRODUCTION MODE since iteration 5b: domain steel-toe-society.com already verified in user's Resend account; SENDER_EMAIL="TMAIT <notifications@steel-toe-society.com>", NOTIFY_TEST_RECIPIENT removed — emails go to real reviewer/admin addresses. NOTE: seeded accounts use fake @tmait.ca emails which will bounce; user should register/update accounts with real emails.
   - Admin-elevation confirm step in User Management (inline confirm before granting admin)
+- **Iteration 6 (2026-06, code review fixes ✅ DONE, tested iteration_5 100% — 42/42 backend, 8/8 flows):**
+  - Auth hardened: localStorage tokens removed — httpOnly cookie auth only (axios withCredentials, SSE credentials:'include'); Bearer header still accepted server-side for API tests
+  - Hook dependency fixes (useCallback load in UserManagement/KnowledgeBase), memoized AuthContext value, error logging in previously-empty catch blocks
+  - Stable React keys (content-derived) across PlanDocument/TrafficMap/SchematicDiagram/Dashboard/ActionsPanel/UserManagement
+  - Complexity extraction: GeneratingCard component, lib/sse.js streamGeneration, collectLayoutPngs helper, pdf_export _styled_table helper
+  - Report false positives NOT changed: server.py `is None` (idiomatic), vendored shadcn use-toast.js
 - P2: Explicit 400 on register with disallowed role (currently coerced to client)
 - P2: CORS explicit origins for production deploy
 - P2: KB doc delete/reindex controls ✅ DONE (iteration 4)
