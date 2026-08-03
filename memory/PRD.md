@@ -53,6 +53,13 @@ Web app where clients submit traffic-management requests via a form; A.T.O.M (AI
   - Removed dead code in atom.py, added type hints to pdf_export helpers
   - A11y: role="tab"/aria-selected on workspace tabs, role="dialog"/aria-modal on admin modals
   - Cleaned 5 leftover TEST_ jobs from DB
+- **Iteration 8 (2026-06, Code Quality Report wave 2 ✅ DONE, tested iteration_8 100% frontend + 42/42 backend pytest):**
+  - Dashboard split further: new `hooks/usePlanGeneration.js` (SSE generation state) + `components/WorkspaceStates.js` (EmptyWorkspace/JobView/NoPlanCard); modal state consolidated to single `modal` var
+  - SchematicDiagram split into layer sub-components (SvgDefs/RoadBase/WorkZoneLayer/SignsLayer/DimsLayer/LaneLine/ArrowBoard/MissingLayout); layoutGeometry.js split into focused helpers (extractDims/laneConfig/horizontalFrame/verticalFrame/buildCones/zoneLabels)
+  - RequestForm (SiteFields/TrafficFields/AttachmentsField + createJobWithAttachments), Login (LoginHero/Branding/ModeTabs/submitLabel), KnowledgeBase (useKbDocs hook + DocRow), UserManagement (UserRow/ElevateConfirm/DeleteCell), GeneratingCard (StageBadge/badgeClass) all decomposed
+  - Nested ternaries removed (Login/GeneratingCard/ActionsPanel generateLabel helper); TrafficMap useMemo deps fixed + Marker position extracted; AuthContext logout catch now logs error; stable setState deps added (useJobs/AuthContext/TrainingDashboard/KnowledgeBase/UserManagement/use-toast)
+  - Backend: atom.py stream_generate split into _retrieve_context/_build_prompt/_make_chat; test_existing_job_has_plan simplified with key loop
+  - Report FALSE POSITIVES not changed (documented): Python `is None`/`is not None` checks (server.py:476, tests) are idiomatic identity checks against None per PEP 8 — converting to `==` would be a regression; hook "dependencies" like `r`, `data`, `e`, `timer`, `index` are local variables/params and cannot be dependencies; `api`/`apiError`/`listeners` are module-scope constants that eslint exhaustive-deps correctly excludes
 - P2: Explicit 400 on register with disallowed role (currently coerced to client)
 - P2: CORS explicit origins for production deploy
 - P2: KB doc delete/reindex controls ✅ DONE (iteration 4)
