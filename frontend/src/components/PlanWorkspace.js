@@ -27,9 +27,9 @@ export default function PlanWorkspace({ job, sheets, isReviewer, onSavePlan }) {
 
   return (
     <>
-      <div className="flex border border-black/15 rounded-sm w-fit mb-8 overflow-hidden">
+      <div role="tablist" className="flex border border-black/15 rounded-sm w-fit mb-8 overflow-hidden">
         {TABS.map(([k, label, Icon]) => (
-          <button key={k} data-testid={`tab-${k}`} onClick={() => setTab(k)}
+          <button key={k} role="tab" aria-selected={tab === k} data-testid={`tab-${k}`} onClick={() => setTab(k)}
             className={`flex items-center gap-2 px-5 py-2.5 text-xs font-mono uppercase tracking-[0.12em] transition-colors duration-150 ${tab === k ? "bg-[#0A0A0A] text-white" : "text-zinc-600 hover:text-black bg-white"}`}>
             <Icon size={14} /> {label}
           </button>

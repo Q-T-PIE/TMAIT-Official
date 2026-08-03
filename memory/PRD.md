@@ -48,6 +48,11 @@ Web app where clients submit traffic-management requests via a form; A.T.O.M (AI
   - Stable React keys (content-derived) across PlanDocument/TrafficMap/SchematicDiagram/Dashboard/ActionsPanel/UserManagement
   - Complexity extraction: GeneratingCard component, lib/sse.js streamGeneration, collectLayoutPngs helper, pdf_export _styled_table helper
   - Report false positives NOT changed: server.py `is None` (idiomatic), vendored shadcn use-toast.js
+- **Iteration 7 (2026-06, refactor verification ✅ DONE, tested iteration_7 100% — 42/42 backend, all UI flows):**
+  - Verified Code Quality Report refactor end-to-end: Dashboard split (JobHeader/PlanWorkspace/useJobs), SchematicDiagram + layoutGeometry.js extraction, backend pdf_export/atom/server helper extraction — no regressions
+  - Removed dead code in atom.py, added type hints to pdf_export helpers
+  - A11y: role="tab"/aria-selected on workspace tabs, role="dialog"/aria-modal on admin modals
+  - Cleaned 5 leftover TEST_ jobs from DB
 - P2: Explicit 400 on register with disallowed role (currently coerced to client)
 - P2: CORS explicit origins for production deploy
 - P2: KB doc delete/reindex controls ✅ DONE (iteration 4)

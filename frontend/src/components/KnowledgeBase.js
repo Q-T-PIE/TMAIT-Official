@@ -66,7 +66,7 @@ export default function KnowledgeBase({ onClose }) {
   const statusColor = { indexed: "#10B981", indexing: "#F59E0B", failed: "#EF4444" };
 
   return (
-    <div className="fixed inset-0 z-[1000] bg-black/70 backdrop-blur-sm flex items-center justify-center p-6" data-testid="kb-modal">
+    <div role="dialog" aria-modal="true" className="fixed inset-0 z-[1000] bg-black/70 backdrop-blur-sm flex items-center justify-center p-6" data-testid="kb-modal">
       <div className="bg-[#121212] border border-white/15 rounded-sm w-full max-w-2xl max-h-[80vh] overflow-y-auto p-8 animate-rise">
         <div className="flex items-start justify-between mb-6">
           <div>

@@ -46,7 +46,7 @@ export default function UserManagement({ onClose }) {
   };
 
   return (
-    <div className="fixed inset-0 z-[1000] bg-black/70 backdrop-blur-sm flex items-center justify-center p-6" data-testid="users-modal">
+    <div role="dialog" aria-modal="true" className="fixed inset-0 z-[1000] bg-black/70 backdrop-blur-sm flex items-center justify-center p-6" data-testid="users-modal">
       <div className="bg-[#121212] border border-white/15 rounded-sm w-full max-w-3xl max-h-[85vh] overflow-y-auto p-8 animate-rise">
         <div className="flex items-start justify-between mb-6">
           <div>
