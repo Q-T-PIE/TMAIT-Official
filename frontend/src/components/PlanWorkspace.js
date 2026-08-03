@@ -1,0 +1,57 @@
+import { useState } from "react";
+import { FileText, MapTrifold, TrafficCone } from "@phosphor-icons/react";
+import PlanDocument from "./PlanDocument";
+import TrafficMap from "./TrafficMap";
+import SchematicDiagram from "./SchematicDiagram";
+
+const TABS = [["plan", "Plan Document", FileText], ["layout", "Layout Diagram", TrafficCone], ["map", "Map View", MapTrifold]];
+
+function SheetTabs({ sheets, sheetIdx, onSelect }) {
+  if (sheets.length < 2) return null;
+  return (
+    <div className="flex border border-black/15 rounded-sm w-fit mb-4 overflow-hidden" data-testid="sheet-tabs">
+      {sheets.map((s, i) => (
+        <button key={`tc-${s.sheet_title || s.layout_title || i}`} data-testid={`sheet-tab-${i}`} onClick={() => onSelect(i)}
+          className={`px-4 py-2 text-[10px] font-mono uppercase tracking-[0.12em] transition-colors duration-150 ${sheetIdx === i ? "bg-[#FF5F15] text-black font-bold" : "bg-white text-zinc-600 hover:text-black"}`}>
+          TC-{i + 1}{s.sheet_title ? ` · ${s.sheet_title.slice(0, 24)}` : ""}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+export default function PlanWorkspace({ job, sheets, isReviewer, onSavePlan }) {
+  const [tab, setTab] = useState("plan");
+  const [sheetIdx, setSheetIdx] = useState(0);
+  const safeIdx = Math.min(sheetIdx, Math.max(sheets.length - 1, 0));
+
+  return (
+    <>
+      <div className="flex border border-black/15 rounded-sm w-fit mb-8 overflow-hidden">
+        {TABS.map(([k, label, Icon]) => (
+          <button key={k} data-testid={`tab-${k}`} onClick={() => setTab(k)}
+            className={`flex items-center gap-2 px-5 py-2.5 text-xs font-mono uppercase tracking-[0.12em] transition-colors duration-150 ${tab === k ? "bg-[#0A0A0A] text-white" : "text-zinc-600 hover:text-black bg-white"}`}>
+            <Icon size={14} /> {label}
+          </button>
+        ))}
+      </div>
+      <div key={tab} className="animate-fade">
+        {tab === "plan" && <PlanDocument plan={job.plan} editable={isReviewer} onSave={onSavePlan} />}
+        {tab === "layout" && (
+          <div>
+            <SheetTabs sheets={sheets} sheetIdx={safeIdx} onSelect={setSheetIdx} />
+            <SchematicDiagram layout={sheets[safeIdx] || null} job={job} sheetIndex={safeIdx} sheetCount={sheets.length} />
+          </div>
+        )}
+        {tab === "map" && <TrafficMap features={job.plan.map_features} />}
+      </div>
+      {sheets.length > 0 && (
+        <div style={{ position: "absolute", left: -20000, top: 0 }} aria-hidden="true">
+          {sheets.map((l, i) => (
+            <SchematicDiagram key={`export-${l.sheet_title || l.layout_title || i}`} layout={l} job={job} svgId={`layout-svg-export-${i}`} sheetIndex={i} sheetCount={sheets.length} />
+          ))}
+        </div>
+      )}
+    </>
+  );
+}

@@ -9,6 +9,22 @@ const TEXT_SECTIONS = [
   ["safety_considerations", "8 — Safety Considerations"],
 ];
 
+function PlanSection({ title, sectionKey, value, editing, onChange }) {
+  return (
+    <div>
+      <h2 className="font-heading text-lg font-bold tracking-tight text-[#0A0A0A] mt-8 mb-2 flex items-center gap-2">
+        <span className="w-1.5 h-5 bg-[#FF5F15] inline-block" />{title}
+      </h2>
+      {editing ? (
+        <textarea data-testid={`edit-${sectionKey}`} className="w-full bg-white border border-black/15 p-3 text-sm rounded-sm font-body focus:outline-none focus:ring-1 focus:ring-[#FF5F15]"
+          rows={3} value={value || ""} onChange={(e) => onChange(sectionKey, e.target.value)} />
+      ) : (
+        <p className="text-sm leading-relaxed text-zinc-700 font-body whitespace-pre-line">{value || "—"}</p>
+      )}
+    </div>
+  );
+}
+
 export default function PlanDocument({ plan, editable, onSave }) {
   const [draft, setDraft] = useState(null);
   const p = draft || plan;
@@ -43,15 +59,8 @@ export default function PlanDocument({ plan, editable, onSave }) {
       )}
 
       {TEXT_SECTIONS.map(([key, title]) => (
-        <div key={key}>
-          {secTitle(title)}
-          {draft ? (
-            <textarea data-testid={`edit-${key}`} className="w-full bg-white border border-black/15 p-3 text-sm rounded-sm font-body focus:outline-none focus:ring-1 focus:ring-[#FF5F15]"
-              rows={3} value={p[key] || ""} onChange={(e) => setDraft({ ...draft, [key]: e.target.value })} />
-          ) : (
-            <p className="text-sm leading-relaxed text-zinc-700 font-body whitespace-pre-line">{p[key] || "—"}</p>
-          )}
-        </div>
+        <PlanSection key={key} title={title} sectionKey={key} value={p[key]} editing={!!draft}
+          onChange={(k, v) => setDraft({ ...draft, [k]: v })} />
       ))}
 
       {secTitle("6 — Signage Schedule")}

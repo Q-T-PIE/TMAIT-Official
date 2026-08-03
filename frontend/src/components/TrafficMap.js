@@ -1,4 +1,5 @@
 import { MapContainer, TileLayer, Marker, Polyline, Popup } from "react-leaflet";
+import { useMemo } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 
@@ -26,13 +27,14 @@ const DETOUR_STYLE = { color: "#3B82F6", weight: 4, opacity: 0.8 };
 
 export default function TrafficMap({ features }) {
   const center = features?.center || { lat: 49.2827, lng: -123.1207 };
+  const centerPos = useMemo(() => [center.lat, center.lng], [center.lat, center.lng]);
   const markers = features?.markers || [];
   const closure = (features?.closure_path || []).filter((p) => Array.isArray(p) && p.length === 2);
   const detour = (features?.detour_path || []).filter((p) => Array.isArray(p) && p.length === 2);
 
   return (
     <div data-testid="traffic-map" className="border border-black/15 rounded-sm overflow-hidden">
-      <MapContainer center={[center.lat, center.lng]} zoom={features?.zoom || 16} style={{ height: "520px", width: "100%" }} scrollWheelZoom>
+      <MapContainer center={centerPos} zoom={features?.zoom || 16} style={{ height: "520px", width: "100%" }} scrollWheelZoom>
         <TileLayer
           attribution='&copy; OpenStreetMap &copy; CARTO'
           url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"

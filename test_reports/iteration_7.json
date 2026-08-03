@@ -1,0 +1,36 @@
+{
+  "summary": "Full regression after Dashboard/SchematicDiagram/backend refactor. Backend: 42/42 pytest passing (auth, jobs CRUD, review, PDF export, attachments, KB, feedback, SSE auth, multi-sheet export, legacy layout). Frontend: all refactored components render correctly — JobHeader shows title/location/status, PlanWorkspace tabs (Plan Document / Layout Diagram / Map View) all render on approved job. Layout Diagram: schematic SVG (big canvas) renders via layoutGeometry.js extraction. Map View: Leaflet with 12 markers + 15 tiles. Plan Document: 9 headings + TMM citations. Admin modals (Knowledge Base showing 3 TMM docs / 289 chunks; ATOM Training; Users) all open and load content. Reviewer sees Approve/Reject buttons on pending jobs. Client, Reviewer, Admin logins all succeed. No React crashes, no page errors in console (only expected 401s from /api/auth/me before login). No ObjectId serialization errors.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "PlanWorkspace tabs", "issues": ["Tab triggers are custom buttons without role=\\\"tab\\\" ARIA attribute — semantic/a11y minor; does not block functionality"]},
+      {"screen": "Admin modals", "issues": ["Modal container lacks role=\\\"dialog\\\" ARIA attribute — automation/a11y minor; modal opens and works fine"]},
+      {"screen": "Admin sidebar", "issues": ["User Management button labeled 'Users' in UI (task description used 'User Management') — cosmetic label mismatch only"]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_auth.py",
+    "/app/backend/tests/test_cookie_auth.py",
+    "/app/backend/tests/test_jobs_flow.py",
+    "/app/backend/tests/test_new_features.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "(Optional/nice-to-have) Add role=\\\"tab\\\" to PlanWorkspace tab buttons and role=\\\"dialog\\\" to admin modal container for a11y + easier test automation.",
+    "(Optional) Add cleanup for TEST_ prefixed jobs — 6+ leftover from pytest runs are visible in client sidebar. Not a bug, but hygiene."
+  ],
+  "critical_code_review_comments": [
+    "Refactor is clean — Dashboard.js split into JobHeader/PlanWorkspace/useJobs is working end-to-end with no stale-closure or props-passing regressions detected.",
+    "layoutGeometry.js extraction verified — schematic SVG still renders correctly at proper canvas size on approved job.",
+    "Backend helper-function extraction in pdf_export/atom/server did not introduce serialization regressions — PDF export returns valid %PDF- bytes with attachment disposition; all list/detail endpoints return clean JSON (no _id leakage per test_client_only_sees_own_jobs assertion)."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (42/42)", "frontend": "100% (all critical flows)"},
+  "test_credentials": "client@tmait.ca / Client@1234, reviewer@tmait.ca / Review@1234, admin@tmait.ca / Admin@1234 — all three verified working via UI + API.",
+  "seed_data_creation": "6+ TEST_ prefixed jobs created by pytest runs remain in DB (harmless, prefixed for identification).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Refactor regression fully verified. If further work touches PlanWorkspace/JobHeader/SchematicDiagram, key selectors to reuse: data-testid=\\\"job-title\\\" (JobHeader), button:has-text(\\\"Layout Diagram\\\"|\\\"Map View\\\"|\\\"Plan Document\\\") for tab switching (they are NOT role=tab), .leaflet-container/.leaflet-marker-icon for Map, big <svg> (width>400) for Schematic. Admin modals use custom overlay (no role=dialog) — assert on content strings (e.g. 'chunks', 'indexed', 'TMM') instead of role. Login submit button text: 'ENTER CONTROL CENTER'. SSE generation not exercised in this pass (main agent already validated during pre-check); if you need to re-trigger, allow 60-180s and expect stage badges (retrieving/geocoding/drafting)."
+}

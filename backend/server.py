@@ -261,6 +261,29 @@ async def generate_stream(job_id: str, data: GenerateIn, user: dict = Depends(ge
 ALLOWED_ATT_EXT = {"pdf", "png", "jpg", "jpeg", "webp", "txt"}
 
 
+def _attachment_excerpt(ext: str, data: bytes) -> Optional[str]:
+    if ext == "pdf":
+        try:
+            import io
+            from pypdf import PdfReader
+            reader = PdfReader(io.BytesIO(data))
+            return "\n".join((p.extract_text() or "") for p in reader.pages[:5]).strip()[:4000] or None
+        except Exception:
+            return None
+    if ext == "txt":
+        return data.decode("utf-8", "ignore")[:4000]
+    return None
+
+
+def _validate_attachment(filename: str, data: bytes) -> str:
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+    if ext not in ALLOWED_ATT_EXT:
+        raise HTTPException(status_code=400, detail=f"Unsupported file type — allowed: {', '.join(sorted(ALLOWED_ATT_EXT))}")
+    if len(data) > 10 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="File exceeds 10 MB limit")
+    return ext
+
+
 @api.post("/jobs/{job_id}/attachments")
 async def upload_attachment(job_id: str, file: UploadFile = File(...), user: dict = Depends(get_current_user)):
     job = await db.jobs.find_one({"id": job_id}, {"_id": 0})
@@ -268,31 +291,16 @@ async def upload_attachment(job_id: str, file: UploadFile = File(...), user: dic
         raise HTTPException(status_code=404, detail="Job not found")
     if user["role"] == "client" and job["client_id"] != user["id"]:
         raise HTTPException(status_code=403, detail="Not your job")
-    ext = file.filename.rsplit(".", 1)[-1].lower() if "." in file.filename else ""
-    if ext not in ALLOWED_ATT_EXT:
-        raise HTTPException(status_code=400, detail=f"Unsupported file type — allowed: {', '.join(sorted(ALLOWED_ATT_EXT))}")
     data = await file.read()
-    if len(data) > 10 * 1024 * 1024:
-        raise HTTPException(status_code=400, detail="File exceeds 10 MB limit")
+    ext = _validate_attachment(file.filename, data)
     path = f"{objstore.APP_NAME}/uploads/{job_id}/{uuid.uuid4()}.{ext}"
     try:
         result = await objstore.put_object(path, data, file.content_type or "application/octet-stream")
     except Exception as e:
         logger.error(f"Attachment upload failed: {e}")
         raise HTTPException(status_code=502, detail="Storage upload failed, please retry")
-    excerpt = None
-    if ext == "pdf":
-        try:
-            import io
-            from pypdf import PdfReader
-            reader = PdfReader(io.BytesIO(data))
-            excerpt = "\n".join((p.extract_text() or "") for p in reader.pages[:5]).strip()[:4000] or None
-        except Exception:
-            excerpt = None
-    elif ext == "txt":
-        excerpt = data.decode("utf-8", "ignore")[:4000]
     att = {"id": str(uuid.uuid4()), "filename": file.filename, "content_type": file.content_type,
-           "size": len(data), "storage_path": result["path"], "text_excerpt": excerpt}
+           "size": len(data), "storage_path": result["path"], "text_excerpt": _attachment_excerpt(ext, data)}
     await db.jobs.update_one({"id": job_id}, {"$push": {"attachments": att}, "$set": {"updated_at": now_iso()}})
     return {k: att[k] for k in ("id", "filename", "content_type", "size")}
 

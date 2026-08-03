@@ -1,3 +1,5 @@
+import { computeLayoutGeometry } from "../lib/layoutGeometry";
+
 const SIGN_ORANGE = "#F97316";
 
 function Sign({ x, y, sign, side }) {
@@ -45,6 +47,44 @@ function LaneArrow({ x, y, down }) {
   return <path d={d} stroke="#111" strokeWidth="2" fill="none" />;
 }
 
+function Legend({ top }) {
+  return (
+    <g transform={`translate(18, ${top})`}>
+      <rect x="0" y="0" width="146" height="118" fill="#fff" stroke="#111" strokeWidth="1" />
+      <text x="8" y="16" fontSize="9" fontFamily="monospace" fontWeight="bold" fill="#111">LEGEND</text>
+      <rect x="10" y="24" width="12" height="12" fill={SIGN_ORANGE} stroke="#111" transform="rotate(45 16 30)" />
+      <text x="32" y="34" fontSize="8.5" fontFamily="monospace" fill="#111">Sign (BC MoTI)</text>
+      <circle cx="16" cy="50" r="4" fill={SIGN_ORANGE} stroke="#111" />
+      <text x="32" y="53" fontSize="8.5" fontFamily="monospace" fill="#111">Cone / delineator</text>
+      <rect x="10" y="60" width="12" height="10" fill="url(#hatch)" stroke={SIGN_ORANGE} />
+      <text x="32" y="69" fontSize="8.5" fontFamily="monospace" fill="#111">Work activity area</text>
+      <circle cx="16" cy="83" r="4" fill="#3B82F6" stroke="#111" />
+      <text x="32" y="86" fontSize="8.5" fontFamily="monospace" fill="#111">TCP (flagger)</text>
+      <rect x="10" y="94" width="13" height="9" fill="#333" />
+      <text x="32" y="102" fontSize="8.5" fontFamily="monospace" fill="#111">Flashing arrow board</text>
+      <text x="8" y="114" fontSize="7.5" fontFamily="monospace" fill="#888">Direction of travel: ↑</text>
+    </g>
+  );
+}
+
+function TitleBlock({ W, H, titleH, L, job, sheetIndex, sheetCount }) {
+  return (
+    <g transform={`translate(0, ${H - titleH})`}>
+      <rect x="10" y="0" width={W - 20} height={titleH - 10} fill="#fff" stroke="#111" strokeWidth="1.5" />
+      <line x1="170" y1="0" x2="170" y2={titleH - 10} stroke="#111" strokeWidth="1" />
+      <line x1={W - 250} y1="0" x2={W - 250} y2={titleH - 10} stroke="#111" strokeWidth="1" />
+      <text x="24" y="30" fontSize="16" fontFamily="monospace" fontWeight="bold" fill="#111">TMAIT</text>
+      <text x="24" y="46" fontSize="8" fontFamily="monospace" fill="#666">A.T.O.M · BC TMM 2020</text>
+      <text x="182" y="24" fontSize="11" fontFamily="monospace" fontWeight="bold" fill="#111">{(L.layout_title || "Traffic Control Layout").slice(0, 60)}</text>
+      <text x="182" y="40" fontSize="8.5" fontFamily="monospace" fill="#555">{(L.reference_layout || "").slice(0, 80)}</text>
+      <text x="182" y="56" fontSize="8.5" fontFamily="monospace" fill="#555">{(L.road_name || job?.location || "").slice(0, 50)} · {L.direction_of_travel || ""} · {L.posted_speed || job?.speed_limit} km/h</text>
+      <text x={W - 238} y="24" fontSize="9" fontFamily="monospace" fontWeight="bold" fill="#111">NOT TO SCALE</text>
+      <text x={W - 238} y="40" fontSize="8.5" fontFamily="monospace" fill="#555">{new Date().toLocaleDateString()}</text>
+      <text x={W - 238} y="56" fontSize="8.5" fontFamily="monospace" fill="#555">Sheet TC-{sheetIndex + 1} of {Math.max(sheetCount, 1)}</text>
+    </g>
+  );
+}
+
 export default function SchematicDiagram({ layout, job, svgId = "layout-svg", sheetIndex = 0, sheetCount = 1 }) {
   const L = layout;
   if (!L) {
@@ -56,53 +96,12 @@ export default function SchematicDiagram({ layout, job, svgId = "layout-svg", sh
     );
   }
 
-  const dims = L.dimensions || {};
-  const A = dims.sign_spacing_A_m || 40, B = dims.buffer_B_m || 30, LM = dims.merge_taper_LM_m || 35;
-  const LD = dims.downstream_taper_LD_m || 15, WA = dims.work_area_length_m || 60;
-  const lanes = Math.max(1, Math.min(8, L.lanes || job?.lanes_total || 2));
-  const twoWay = !!L.two_way;
-  const oppLanes = twoWay ? Math.max(1, Math.floor(lanes / 2)) : 0;
-  const closedLeft = !twoWay && L.closed_side === "left";
-  const maxClosable = Math.max(1, lanes - oppLanes);
-  const closedCount = Math.min(Math.max(1, L.closed_lanes_count || 1), maxClosable);
-  const upSigns = (L.upstream_signs || []).slice(0, 6);
-  const downSigns = (L.downstream_signs || []).slice(0, 2);
-
-  const laneW = 56, shW = 20;
-  const roadW = lanes * laneW + shW * 2;
-  const leftM = 200, rightM = 210;
-  const W = leftM + roadW + rightM;
-  const roadL = leftM, roadR = leftM + roadW;
-  const pavL = roadL + shW, pavR = roadR - shW;
-
-  const zTerm = 95, zLD = 55, zWork = 160, zBuf = 75, zTaper = 130;
-  const zApproach = Math.max(2, upSigns.length) * 85 + 30;
-  const top = 60;
-  const yLDtop = top + zTerm;
-  const yWorkTop = yLDtop + zLD;
-  const yBufTop = yWorkTop + zWork;
-  const yTaperTop = yBufTop + zBuf;
-  const yTaperBot = yTaperTop + zTaper;
-  const yBot = yTaperBot + zApproach;
-  const titleH = 84;
-  const H = yBot + 50 + titleH;
-
-  const closBoundX = closedLeft ? pavL + closedCount * laneW : pavR - closedCount * laneW;
-  const closEdgeX = closedLeft ? pavL : pavR;
-  const signSideDefault = closedLeft ? "left" : "right";
-  const signX = (side) => (side === "left" ? roadL - 24 : roadR + 24);
-  const dimX = roadR + 118;
-
-  const taperCones = [];
-  for (let i = 0; i <= 6; i++) {
-    taperCones.push({ x: closEdgeX + (closBoundX - closEdgeX) * (i / 6), y: yTaperBot - zTaper * (i / 6) });
-  }
-  const edgeCones = [];
-  for (let y = yTaperTop - 14; y > yWorkTop + 6; y -= 26) edgeCones.push({ x: closBoundX, y });
-  const ldCones = [];
-  for (let i = 0; i <= 3; i++) ldCones.push({ x: closBoundX + (closEdgeX - closBoundX) * (i / 3), y: yWorkTop - zLD * ((3 - i) / 3) - 0 });
-
-  const workL = Math.min(closBoundX, closEdgeX) + 6, workR = Math.max(closBoundX, closEdgeX) - 6;
+  const {
+    A, B, LM, LD, WA, lanes, twoWay, oppLanes, closedLeft, closedCount, upSigns, downSigns,
+    laneW, roadW, W, H, roadL, roadR, pavL, pavR, top, yLDtop, yWorkTop, yBufTop, yTaperTop,
+    yTaperBot, yBot, titleH, zWork, closEdgeX, signSideDefault, signX, dimX,
+    taperCones, edgeCones, ldCones, workL, workR, zones,
+  } = computeLayoutGeometry(L, job);
 
   return (
     <div data-testid="schematic-diagram" className="max-w-4xl">
@@ -143,7 +142,7 @@ export default function SchematicDiagram({ layout, job, svgId = "layout-svg", sh
         })}
 
         {/* zone labels left */}
-        {[["ADVANCE WARNING", (yTaperBot + yBot) / 2], ["TRANSITION (TAPER)", (yTaperTop + yTaperBot) / 2], ["BUFFER", (yBufTop + yTaperTop) / 2], ["WORK ACTIVITY AREA", (yWorkTop + yBufTop) / 2], ["TERMINATION", (top + yLDtop) / 2]].map(([t, y]) => (
+        {zones.map(([t, y]) => (
           <text key={t} x={roadL - 24} y={y} fontSize="9" fontFamily="monospace" fill="#888" textAnchor="end" transform={`rotate(-90 ${roadL - 24} ${y})`}>{t}</text>
         ))}
 
@@ -188,37 +187,9 @@ export default function SchematicDiagram({ layout, job, svgId = "layout-svg", sh
         <DimLine x={dimX} y1={yWorkTop} y2={yBufTop} label={`${WA} m`} />
         <DimLine x={dimX} y1={yLDtop} y2={yWorkTop} label={`LD = ${LD} m`} />
 
-        {/* legend */}
-        <g transform={`translate(18, ${top})`}>
-          <rect x="0" y="0" width="146" height="118" fill="#fff" stroke="#111" strokeWidth="1" />
-          <text x="8" y="16" fontSize="9" fontFamily="monospace" fontWeight="bold" fill="#111">LEGEND</text>
-          <rect x="10" y="24" width="12" height="12" fill={SIGN_ORANGE} stroke="#111" transform="rotate(45 16 30)" />
-          <text x="32" y="34" fontSize="8.5" fontFamily="monospace" fill="#111">Sign (BC MoTI)</text>
-          <circle cx="16" cy="50" r="4" fill={SIGN_ORANGE} stroke="#111" />
-          <text x="32" y="53" fontSize="8.5" fontFamily="monospace" fill="#111">Cone / delineator</text>
-          <rect x="10" y="60" width="12" height="10" fill="url(#hatch)" stroke={SIGN_ORANGE} />
-          <text x="32" y="69" fontSize="8.5" fontFamily="monospace" fill="#111">Work activity area</text>
-          <circle cx="16" cy="83" r="4" fill="#3B82F6" stroke="#111" />
-          <text x="32" y="86" fontSize="8.5" fontFamily="monospace" fill="#111">TCP (flagger)</text>
-          <rect x="10" y="94" width="13" height="9" fill="#333" />
-          <text x="32" y="102" fontSize="8.5" fontFamily="monospace" fill="#111">Flashing arrow board</text>
-          <text x="8" y="114" fontSize="7.5" fontFamily="monospace" fill="#888">Direction of travel: ↑</text>
-        </g>
-
-        {/* title block */}
-        <g transform={`translate(0, ${H - titleH})`}>
-          <rect x="10" y="0" width={W - 20} height={titleH - 10} fill="#fff" stroke="#111" strokeWidth="1.5" />
-          <line x1="170" y1="0" x2="170" y2={titleH - 10} stroke="#111" strokeWidth="1" />
-          <line x1={W - 250} y1="0" x2={W - 250} y2={titleH - 10} stroke="#111" strokeWidth="1" />
-          <text x="24" y="30" fontSize="16" fontFamily="monospace" fontWeight="bold" fill="#111">TMAIT</text>
-          <text x="24" y="46" fontSize="8" fontFamily="monospace" fill="#666">A.T.O.M · BC TMM 2020</text>
-          <text x="182" y="24" fontSize="11" fontFamily="monospace" fontWeight="bold" fill="#111">{(L.layout_title || "Traffic Control Layout").slice(0, 60)}</text>
-          <text x="182" y="40" fontSize="8.5" fontFamily="monospace" fill="#555">{(L.reference_layout || "").slice(0, 80)}</text>
-          <text x="182" y="56" fontSize="8.5" fontFamily="monospace" fill="#555">{(L.road_name || job?.location || "").slice(0, 50)} · {L.direction_of_travel || ""} · {L.posted_speed || job?.speed_limit} km/h</text>
-          <text x={W - 238} y="24" fontSize="9" fontFamily="monospace" fontWeight="bold" fill="#111">NOT TO SCALE</text>
-          <text x={W - 238} y="40" fontSize="8.5" fontFamily="monospace" fill="#555">{new Date().toLocaleDateString()}</text>
-          <text x={W - 238} y="56" fontSize="8.5" fontFamily="monospace" fill="#555">Sheet TC-{sheetIndex + 1} of {Math.max(sheetCount, 1)}</text>
-        </g>
+        {/* legend + title block */}
+        <Legend top={top} />
+        <TitleBlock W={W} H={H} titleH={titleH} L={L} job={job} sheetIndex={sheetIndex} sheetCount={sheetCount} />
       </svg>
       {L.notes && <p className="font-mono text-[11px] text-zinc-500 mt-2">NOTE: {L.notes}</p>}
     </div>

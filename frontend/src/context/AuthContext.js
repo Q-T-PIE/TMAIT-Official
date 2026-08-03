@@ -25,8 +25,8 @@ export function AuthProvider({ children }) {
   const logout = async () => {
     try {
       await api.post("/auth/logout");
-    } catch (e) {
-      console.error("Logout request failed:", e);
+    } catch {
+      // cookie cleared client-side regardless; server session is stateless JWT
     }
     setUser(false);
   };

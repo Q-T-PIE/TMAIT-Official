@@ -93,6 +93,37 @@ async def get_feedback_examples(limit: int = 3) -> str:
     return "\n".join(lines)
 
 
+def _attachments_context(job: dict) -> str:
+    lines = []
+    for a in (job.get("attachments") or []):
+        if a.get("text_excerpt"):
+            lines.append(f"--- Attachment: {a['filename']} ---\n{a['text_excerpt'][:2500]}")
+    return ("CLIENT-PROVIDED ATTACHMENTS (site-specific info to incorporate):\n" + "\n".join(lines)) if lines else ""
+
+
+def _revision_context(job: dict) -> str:
+    if job.get("status") != "rejected" or not job.get("review_feedback"):
+        return ""
+    prev_plan = json.dumps(job.get("plan") or {}, ensure_ascii=False)[:6000]
+    return f"""REVISION REQUEST — the previous plan for THIS job was REJECTED by a reviewer.
+You MUST directly address this rejection feedback in the revised plan:
+"{job['review_feedback']}"
+
+Previous plan (revise and improve it — keep what was correct, fix what was criticized):
+{prev_plan}
+"""
+
+
+def _parse_plan(text: str, coords: dict) -> dict:
+    start, end = text.find("{"), text.rfind("}")
+    if start == -1 or end == -1:
+        raise ValueError(f"Model returned no JSON: {text[:300]}")
+    plan = json.loads(text[start:end + 1])
+    plan.setdefault("map_features", {})
+    plan["map_features"].setdefault("center", coords)
+    return plan
+
+
 async def stream_generate(job: dict, model_key: str):
     provider, model, env_key = MODELS.get(model_key, MODELS["gpt-5.2"])
     api_key = os.environ[env_key]
@@ -107,23 +138,8 @@ async def stream_generate(job: dict, model_key: str):
     yield {"type": "stage", "stage": "geocoding"}
     coords = await geocode(job["location"])
     feedback = await get_feedback_examples()
-
-    attach_lines = []
-    for a in (job.get("attachments") or []):
-        if a.get("text_excerpt"):
-            attach_lines.append(f"--- Attachment: {a['filename']} ---\n{a['text_excerpt'][:2500]}")
-    attachments_ctx = ("CLIENT-PROVIDED ATTACHMENTS (site-specific info to incorporate):\n" + "\n".join(attach_lines)) if attach_lines else ""
-
-    revision = ""
-    if job.get("status") == "rejected" and job.get("review_feedback"):
-        prev_plan = json.dumps(job.get("plan") or {}, ensure_ascii=False)[:6000]
-        revision = f"""REVISION REQUEST — the previous plan for THIS job was REJECTED by a reviewer.
-You MUST directly address this rejection feedback in the revised plan:
-"{job['review_feedback']}"
-
-Previous plan (revise and improve it — keep what was correct, fix what was criticized):
-{prev_plan}
-"""
+    attachments_ctx = _attachments_context(job)
+    revision = _revision_context(job)
 
     prompt = f"""JOB REQUEST:
 - Title: {job['title']}
@@ -166,12 +182,7 @@ Generate the complete traffic management plan JSON now."""
         elif isinstance(ev, StreamDone):
             break
 
-    start, end = text.find("{"), text.rfind("}")
-    if start == -1 or end == -1:
-        raise ValueError(f"Model returned no JSON: {text[:300]}")
-    plan = json.loads(text[start:end + 1])
-    plan.setdefault("map_features", {})
-    plan["map_features"].setdefault("center", coords)
+    plan = _parse_plan(text, coords)
     sources = [{"doc_title": c["doc_title"], "page": c["page"], "score": round(c["score"], 3)} for c in context_chunks]
     yield {"type": "result", "plan": plan, "sources": sources, "model_used": model_key}
 
