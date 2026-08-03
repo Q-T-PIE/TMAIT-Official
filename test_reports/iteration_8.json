@@ -1,0 +1,27 @@
+{
+  "summary": "Frontend-only regression after second refactor wave (Dashboard split with usePlanGeneration hook + WorkspaceStates, SchematicDiagram layers split, layoutGeometry helpers, RequestForm/Login/KnowledgeBase/UserManagement/GeneratingCard rewrites, TrafficMap memo, ActionsPanel/GeneratingCard/Login nested-ternary fixes). All critical UI flows verified: Login page renders with TMAIT hero + 'ENTER CONTROL CENTER' submit; Register tab shows Full name input + Role select (Client/Reviewer) + Email + Password + 'CREATE ACCOUNT'. Reviewer login lands on Dashboard with workspace-empty-state 'A.T.O.M is standing by.' Clicked non-TEST 'City of Prince George Capitol Paving Project' (pending review) — JobHeader renders (title, PENDING REVIEW badge, location); tab-plan / tab-layout / tab-map all present with role=tab; Plan Document shows 9 headings + TMM citation refs (RAG grounding sources visible in Actions panel too); Layout Diagram renders schematic SVG at 896x1894 with 143 SVG children (road base, work zone, signs, dims, legend) — 2 sheet tabs (TC-1/TC-2) present and switchable; Map View renders traffic-map with 10 Leaflet markers + Leaflet tiles + legend; Approve/Reject buttons visible; Regenerate Plan label correct on job with plan; Download Plan PDF triggers real download (TMAIT_Plan_Watermain repair - Lonsdale Av.pdf). Client login + New Request form: all 14 form-* testids present (title/location/works-type/road-type/start-date/duration/lanes-total/lanes-closed/speed/volume/hazards/notes/attachments/submit); submitting UI_TEST_ Refactor check draft creates job and auto-opens with no-plan-state 'No plan generated yet' + Generate Plan button label correct + model select visible. Admin modals all role=dialog: KB modal shows 3 TMM docs (177/68/44 chunks, 289 total) with 3 reindex buttons; Training modal shows stats + feedback list; Users modal has 7 users, 7 role selects, 7 delete buttons; elevate-to-admin inline confirm appears on role change (2 confirm elements) and cancels correctly reverting selection to 'reviewer'. Only console output: expected pre-login 401 from /api/auth/me. No React crashes, no page errors.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": ["/app/test_reports/iteration_8.json"],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Refactor wave 2 is a clean regression pass — Dashboard split (usePlanGeneration + WorkspaceStates.EmptyWorkspace/JobView/NoPlanCard) preserves all state transitions correctly; no stale-closure or re-render issues detected.",
+    "SchematicDiagram layer split (SvgDefs/RoadBase/WorkZoneLayer/SignsLayer/DimsLayer) + layoutGeometry.js helper extraction verified — schematic still renders identical geometry (896x1894, 143 SVG children, multi-sheet TC-1/TC-2 switching intact).",
+    "RequestForm rewrite — all 14 data-testid attributes preserved; native HTML5 form validation on speed (>=20) working; form submits and auto-opens created job.",
+    "KnowledgeBase/UserManagement/Login/GeneratingCard rewrites intact — a11y improvement noted: KB modal, Training modal, Users modal now have role='dialog', and PlanWorkspace tabs now have role='tab' (previously flagged as a11y gap in iteration_7 — RESOLVED).",
+    "ActionsPanel Generate button label correctly toggles 'GENERATE PLAN' (draft) vs 'REGENERATE PLAN' (plan exists).",
+    "Elevate-to-admin inline confirm on UserManagement works — non-blocking selector change with cancel reverts the select value client-side."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "skipped (main agent confirmed 42/42)", "frontend": "100% (all listed flows verified)"},
+  "test_credentials": "client@tmait.ca / Client@1234, reviewer@tmait.ca / Review@1234, admin@tmait.ca / Admin@1234 — all three verified working.",
+  "seed_data_creation": "1 new draft job created via UI: 'UI_TEST_ Refactor check' (client@tmait.ca, Main St Vancouver BC). Multiple older TEST_ prefixed jobs still in DB from earlier pytest runs (harmless).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Refactor wave 2 fully validated. Key selectors reused: [data-testid=login-submit-button] (label 'ENTER CONTROL CENTER'), [data-testid=job-title], [data-testid=tab-plan|tab-layout|tab-map] (now have role=tab), [data-testid=schematic-diagram] (SVG), [data-testid=traffic-map], [data-testid=workspace-empty-state], [data-testid=no-plan-state], [data-testid=generate-plan-button] (label toggles 'GENERATE PLAN'/'REGENERATE PLAN'), [data-testid=approve-button]/[data-testid=reject-button], [data-testid=export-pdf-button], [data-testid=kb-modal]/[data-testid=kb-docs-list]/[data-testid^=kb-reindex-button-], [data-testid=users-modal]/[data-testid=users-table]/[data-testid^=user-role-select-], [data-testid=training-modal]. All modals now role=dialog. Form testids: form-title-input, form-location-input, form-works-type-select, form-road-type-select, form-start-date-input, form-duration-input, form-lanes-total-input, form-lanes-closed-input, form-speed-input (min=20), form-volume-select, form-hazards-input, form-notes-input, form-attachments-input, form-submit-button. Did NOT trigger real LLM generation per instructions (would consume tokens). Multi-sheet TC-1/TC-2 tabs are buttons with visible text 'TC-1'/'TC-2'.",
+  "rca of the issue": "N/A — no issues found."
+}

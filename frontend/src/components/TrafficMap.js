@@ -26,8 +26,10 @@ const CLOSURE_STYLE = { color: "#EF4444", weight: 6, dashArray: "10 8", opacity:
 const DETOUR_STYLE = { color: "#3B82F6", weight: 4, opacity: 0.8 };
 
 export default function TrafficMap({ features }) {
-  const center = features?.center || { lat: 49.2827, lng: -123.1207 };
-  const centerPos = useMemo(() => [center.lat, center.lng], [center.lat, center.lng]);
+  const centerPos = useMemo(() => {
+    const c = features?.center || {};
+    return [c.lat ?? 49.2827, c.lng ?? -123.1207];
+  }, [features]);
   const markers = features?.markers || [];
   const closure = (features?.closure_path || []).filter((p) => Array.isArray(p) && p.length === 2);
   const detour = (features?.detour_path || []).filter((p) => Array.isArray(p) && p.length === 2);
@@ -41,11 +43,14 @@ export default function TrafficMap({ features }) {
         />
         {closure.length > 1 && <Polyline positions={closure} pathOptions={CLOSURE_STYLE} />}
         {detour.length > 1 && <Polyline positions={detour} pathOptions={DETOUR_STYLE} />}
-        {markers.map((m, i) => (
-          <Marker key={`${m.type}-${m.lat}-${m.lng}-${i}`} position={[m.lat, m.lng]} icon={makeIcon(m.type)}>
-            <Popup><span className="font-mono text-xs uppercase">{m.type}</span><br />{m.label}</Popup>
-          </Marker>
-        ))}
+        {markers.map((m, i) => {
+          const position = [m.lat, m.lng];
+          return (
+            <Marker key={`${m.type}-${m.lat}-${m.lng}-${i}`} position={position} icon={makeIcon(m.type)}>
+              <Popup><span className="font-mono text-xs uppercase">{m.type}</span><br />{m.label}</Popup>
+            </Marker>
+          );
+        })}
       </MapContainer>
       <div className="flex flex-wrap gap-4 px-4 py-3 bg-white border-t border-black/10">
         {Object.entries(MARKER_STYLES).map(([k, v]) => (

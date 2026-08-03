@@ -3,14 +3,14 @@ import { UploadSimple, FilePdf, X, ArrowsClockwise, Trash } from "@phosphor-icon
 import api, { apiError } from "../lib/api";
 import { toast } from "sonner";
 
-export default function KnowledgeBase({ onClose }) {
+const STATUS_COLOR = { indexed: "#10B981", indexing: "#F59E0B", failed: "#EF4444" };
+
+function useKbDocs() {
   const [data, setData] = useState({ docs: [], total_chunks: 0 });
   const [uploading, setUploading] = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState(null);
   const [busyDoc, setBusyDoc] = useState(null);
-  const fileRef = useRef();
 
-  const load = useCallback(() => api.get("/kb/docs").then((r) => setData(r.data)).catch(() => {}), []);
+  const load = useCallback(() => api.get("/kb/docs").then((r) => setData(r.data)).catch(() => {}), [setData]);
   useEffect(() => {
     load();
     const timer = setInterval(load, 5000);
@@ -36,11 +36,10 @@ export default function KnowledgeBase({ onClose }) {
     }
   };
 
-  const reindex = async (d) => {
-    setBusyDoc(d.id);
+  const docAction = async (method, url, successMsg) => {
     try {
-      await api.post(`/kb/docs/${d.id}/reindex`);
-      toast.success(`"${d.title}" reindexed`);
+      await api[method](url);
+      toast.success(successMsg);
       load();
     } catch (err) {
       toast.error(apiError(err));
@@ -49,21 +48,59 @@ export default function KnowledgeBase({ onClose }) {
     }
   };
 
-  const removeDoc = async (d) => {
+  const reindex = (d) => {
     setBusyDoc(d.id);
-    try {
-      await api.delete(`/kb/docs/${d.id}`);
-      toast.success(`"${d.title}" removed from knowledge base`);
-      setConfirmDelete(null);
-      load();
-    } catch (err) {
-      toast.error(apiError(err));
-    } finally {
-      setBusyDoc(null);
-    }
+    return docAction("post", `/kb/docs/${d.id}/reindex`, `"${d.title}" reindexed`);
   };
 
-  const statusColor = { indexed: "#10B981", indexing: "#F59E0B", failed: "#EF4444" };
+  const removeDoc = (d) => {
+    setBusyDoc(d.id);
+    return docAction("delete", `/kb/docs/${d.id}`, `"${d.title}" removed from knowledge base`);
+  };
+
+  return { data, uploading, busyDoc, upload, reindex, removeDoc };
+}
+
+function DocRow({ d, busyDoc, confirmDelete, setConfirmDelete, onReindex, onRemove }) {
+  return (
+    <div className="flex items-center gap-3 border border-white/10 rounded-sm px-4 py-3">
+      <FilePdf size={20} className="text-[#FF5F15] flex-shrink-0" />
+      <div className="flex-1 min-w-0">
+        <p className="text-sm text-white font-body truncate">{d.title}</p>
+        <p className="font-mono text-[10px] text-zinc-500">{d.chunk_count} chunks · {new Date(d.created_at).toLocaleString()}</p>
+      </div>
+      <span className="font-mono text-[10px] uppercase tracking-[0.15em] px-2 py-0.5 border rounded-sm"
+        style={{ color: STATUS_COLOR[d.status], borderColor: `${STATUS_COLOR[d.status]}66` }}>
+        {d.status}
+      </span>
+      <div className="flex items-center gap-1">
+        <button data-testid={`kb-reindex-button-${d.id}`} onClick={() => onReindex(d)} disabled={busyDoc === d.id || d.status === "indexing"}
+          className="text-zinc-500 hover:text-[#FF5F15] p-1.5 transition-colors duration-150 disabled:opacity-30" title="Re-index document">
+          <ArrowsClockwise size={15} className={busyDoc === d.id ? "animate-spin" : ""} />
+        </button>
+        {confirmDelete === d.id ? (
+          <button data-testid={`kb-delete-confirm-${d.id}`} onClick={() => onRemove(d)} disabled={busyDoc === d.id}
+            className="bg-[#EF4444] text-white px-2 py-1 rounded-sm font-mono text-[9px] uppercase tracking-wider font-bold">Confirm</button>
+        ) : (
+          <button data-testid={`kb-delete-button-${d.id}`} onClick={() => setConfirmDelete(d.id)} disabled={busyDoc === d.id}
+            className="text-zinc-500 hover:text-[#EF4444] p-1.5 transition-colors duration-150 disabled:opacity-30" title="Delete document">
+            <Trash size={15} />
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export default function KnowledgeBase({ onClose }) {
+  const { data, uploading, busyDoc, upload, reindex, removeDoc } = useKbDocs();
+  const [confirmDelete, setConfirmDelete] = useState(null);
+  const fileRef = useRef();
+
+  const remove = (d) => {
+    removeDoc(d);
+    setConfirmDelete(null);
+  };
 
   return (
     <div role="dialog" aria-modal="true" className="fixed inset-0 z-[1000] bg-black/70 backdrop-blur-sm flex items-center justify-center p-6" data-testid="kb-modal">
@@ -86,32 +123,8 @@ export default function KnowledgeBase({ onClose }) {
 
         <div className="space-y-2" data-testid="kb-docs-list">
           {data.docs.map((d) => (
-            <div key={d.id} className="flex items-center gap-3 border border-white/10 rounded-sm px-4 py-3">
-              <FilePdf size={20} className="text-[#FF5F15] flex-shrink-0" />
-              <div className="flex-1 min-w-0">
-                <p className="text-sm text-white font-body truncate">{d.title}</p>
-                <p className="font-mono text-[10px] text-zinc-500">{d.chunk_count} chunks · {new Date(d.created_at).toLocaleString()}</p>
-              </div>
-              <span className="font-mono text-[10px] uppercase tracking-[0.15em] px-2 py-0.5 border rounded-sm"
-                style={{ color: statusColor[d.status], borderColor: `${statusColor[d.status]}66` }}>
-                {d.status}
-              </span>
-              <div className="flex items-center gap-1">
-                <button data-testid={`kb-reindex-button-${d.id}`} onClick={() => reindex(d)} disabled={busyDoc === d.id || d.status === "indexing"}
-                  className="text-zinc-500 hover:text-[#FF5F15] p-1.5 transition-colors duration-150 disabled:opacity-30" title="Re-index document">
-                  <ArrowsClockwise size={15} className={busyDoc === d.id ? "animate-spin" : ""} />
-                </button>
-                {confirmDelete === d.id ? (
-                  <button data-testid={`kb-delete-confirm-${d.id}`} onClick={() => removeDoc(d)} disabled={busyDoc === d.id}
-                    className="bg-[#EF4444] text-white px-2 py-1 rounded-sm font-mono text-[9px] uppercase tracking-wider font-bold">Confirm</button>
-                ) : (
-                  <button data-testid={`kb-delete-button-${d.id}`} onClick={() => setConfirmDelete(d.id)} disabled={busyDoc === d.id}
-                    className="text-zinc-500 hover:text-[#EF4444] p-1.5 transition-colors duration-150 disabled:opacity-30" title="Delete document">
-                    <Trash size={15} />
-                  </button>
-                )}
-              </div>
-            </div>
+            <DocRow key={d.id} d={d} busyDoc={busyDoc} confirmDelete={confirmDelete}
+              setConfirmDelete={setConfirmDelete} onReindex={reindex} onRemove={remove} />
           ))}
           {data.docs.length === 0 && <p className="text-sm text-zinc-500 font-body">Built-in BC TMM 2020 is being indexed on first startup — refresh shortly.</p>}
         </div>

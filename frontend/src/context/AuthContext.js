@@ -10,7 +10,7 @@ export function AuthProvider({ children }) {
     api.get("/auth/me")
       .then((r) => setUser(r.data))
       .catch(() => setUser(false));
-  }, []);
+  }, [setUser]);
 
   const login = async (email, password) => {
     const { data } = await api.post("/auth/login", { email, password });
@@ -25,8 +25,8 @@ export function AuthProvider({ children }) {
   const logout = async () => {
     try {
       await api.post("/auth/logout");
-    } catch {
-      // cookie cleared client-side regardless; server session is stateless JWT
+    } catch (error) {
+      console.error("Logout request failed (session is stateless JWT, clearing locally):", error);
     }
     setUser(false);
   };

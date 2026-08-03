@@ -8,6 +8,12 @@ import { toast } from "sonner";
 
 const LABEL = "font-mono text-[10px] uppercase tracking-[0.2em] text-zinc-500 mb-2 block";
 
+function generateLabel(job, generating) {
+  if (generating) return "ATOM is working…";
+  if (job.status === "rejected") return "Revise & Regenerate";
+  return job.plan ? "Regenerate Plan" : "Generate Plan";
+}
+
 async function exportPdf(job) {
   try {
     let diagram_pngs = [];
@@ -42,7 +48,7 @@ function EngineSection({ job, generating, onGenerate }) {
       <button data-testid="generate-plan-button" disabled={generating} onClick={() => onGenerate(model)}
         className="mt-3 w-full flex items-center justify-center gap-2 bg-[#FF5F15] text-black font-heading font-bold py-3.5 rounded-sm text-sm uppercase tracking-wide hover:bg-[#ff7538] transition-colors duration-150 disabled:opacity-50 glow-orange">
         <Lightning weight="fill" size={16} />
-        {generating ? "ATOM is working…" : job.status === "rejected" ? "Revise & Regenerate" : job.plan ? "Regenerate Plan" : "Generate Plan"}
+        {generateLabel(job, generating)}
       </button>
       {job.status === "rejected" && !generating && (
         <p data-testid="revision-notice" className="text-[11px] text-zinc-400 mt-2 font-body leading-relaxed border-l-2 border-[#EF4444] pl-2">

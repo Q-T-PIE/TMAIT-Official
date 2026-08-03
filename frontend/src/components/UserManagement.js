@@ -6,6 +6,67 @@ import { toast } from "sonner";
 
 const ROLE_COLORS = { admin: "#FF5F15", reviewer: "#3B82F6", client: "#10B981" };
 
+function ElevateConfirm({ u, onConfirm, onCancel }) {
+  return (
+    <div data-testid={`elevate-confirm-${u.id}`} className="mt-2 border border-[#FF5F15]/60 bg-[#FF5F15]/10 rounded-sm px-3 py-2">
+      <p className="font-mono text-[10px] uppercase tracking-wider text-[#FF5F15] mb-1.5">Grant full admin access?</p>
+      <div className="flex gap-2">
+        <button data-testid={`elevate-confirm-button-${u.id}`} onClick={onConfirm}
+          className="bg-[#FF5F15] text-black px-3 py-1 rounded-sm font-mono text-[10px] uppercase tracking-wider font-bold">Confirm</button>
+        <button data-testid={`elevate-cancel-button-${u.id}`} onClick={onCancel}
+          className="text-zinc-400 font-mono text-[10px] uppercase hover:text-white">Cancel</button>
+      </div>
+    </div>
+  );
+}
+
+function DeleteCell({ u, isSelf, confirming, onConfirm, onStart, onCancel }) {
+  if (confirming) {
+    return (
+      <span className="flex items-center gap-2 justify-end">
+        <button data-testid={`user-delete-confirm-${u.id}`} onClick={onConfirm}
+          className="bg-[#EF4444] text-white px-3 py-1.5 rounded-sm font-mono text-[10px] uppercase tracking-wider font-bold">Confirm</button>
+        <button onClick={onCancel} className="text-zinc-400 font-mono text-[10px] uppercase">Cancel</button>
+      </span>
+    );
+  }
+  return (
+    <button data-testid={`user-delete-button-${u.id}`} onClick={onStart} disabled={isSelf}
+      className="text-zinc-500 hover:text-[#EF4444] p-1.5 transition-colors duration-150 disabled:opacity-30" title="Delete user">
+      <Trash size={15} />
+    </button>
+  );
+}
+
+function UserRow({ u, me, elevating, deleting, onRoleChange, onChangeRole, onCancelElevate, onRemove, onStartDelete, onCancelDelete }) {
+  const isSelf = u.id === me.id;
+  return (
+    <tr data-testid={`user-row-${u.id}`} className="border-t border-white/10">
+      <td className="px-4 py-3">
+        <p className="text-white font-body font-medium">{u.name}{isSelf && <span className="font-mono text-[9px] text-[#FF5F15] ml-2">YOU</span>}</p>
+        <p className="font-mono text-[10px] text-zinc-500">{u.email}</p>
+      </td>
+      <td className="px-4 py-3">
+        <select data-testid={`user-role-select-${u.id}`} value={u.role} disabled={isSelf}
+          onChange={(e) => onRoleChange(u, e.target.value)}
+          className="bg-black/50 border border-white/15 px-2 py-1.5 rounded-sm font-mono text-[11px] uppercase tracking-wider focus:outline-none focus:ring-1 focus:ring-[#FF5F15] disabled:opacity-40"
+          style={{ color: ROLE_COLORS[u.role] }}>
+          <option value="client">client</option>
+          <option value="reviewer">reviewer</option>
+          <option value="admin">admin</option>
+        </select>
+        {elevating && <ElevateConfirm u={u} onConfirm={() => onChangeRole(u, "admin")} onCancel={onCancelElevate} />}
+      </td>
+      <td className="px-4 py-3 font-mono text-xs text-zinc-300">{u.job_count}</td>
+      <td className="px-4 py-3 font-mono text-[10px] text-zinc-500">{new Date(u.created_at).toLocaleDateString()}</td>
+      <td className="px-4 py-3 text-right">
+        <DeleteCell u={u} isSelf={isSelf} confirming={deleting}
+          onConfirm={() => onRemove(u)} onStart={onStartDelete} onCancel={onCancelDelete} />
+      </td>
+    </tr>
+  );
+}
+
 export default function UserManagement({ onClose }) {
   const { user: me } = useAuth();
   const [users, setUsers] = useState(null);
@@ -14,7 +75,7 @@ export default function UserManagement({ onClose }) {
 
   const load = useCallback(
     () => api.get("/users").then((r) => setUsers(r.data)).catch((e) => { toast.error(apiError(e)); setUsers([]); }),
-    []
+    [setUsers]
   );
   useEffect(() => { load(); }, [load]);
 
@@ -66,49 +127,10 @@ export default function UserManagement({ onClose }) {
             </thead>
             <tbody>
               {(users || []).map((u) => (
-                <tr key={u.id} data-testid={`user-row-${u.id}`} className="border-t border-white/10">
-                  <td className="px-4 py-3">
-                    <p className="text-white font-body font-medium">{u.name}{u.id === me.id && <span className="font-mono text-[9px] text-[#FF5F15] ml-2">YOU</span>}</p>
-                    <p className="font-mono text-[10px] text-zinc-500">{u.email}</p>
-                  </td>
-                  <td className="px-4 py-3">
-                    <select data-testid={`user-role-select-${u.id}`} value={u.role} disabled={u.id === me.id}
-                      onChange={(e) => onRoleChange(u, e.target.value)}
-                      className="bg-black/50 border border-white/15 px-2 py-1.5 rounded-sm font-mono text-[11px] uppercase tracking-wider focus:outline-none focus:ring-1 focus:ring-[#FF5F15] disabled:opacity-40"
-                      style={{ color: ROLE_COLORS[u.role] }}>
-                      <option value="client">client</option>
-                      <option value="reviewer">reviewer</option>
-                      <option value="admin">admin</option>
-                    </select>
-                    {confirmElevate?.id === u.id && (
-                      <div data-testid={`elevate-confirm-${u.id}`} className="mt-2 border border-[#FF5F15]/60 bg-[#FF5F15]/10 rounded-sm px-3 py-2">
-                        <p className="font-mono text-[10px] uppercase tracking-wider text-[#FF5F15] mb-1.5">Grant full admin access?</p>
-                        <div className="flex gap-2">
-                          <button data-testid={`elevate-confirm-button-${u.id}`} onClick={() => changeRole(u, "admin")}
-                            className="bg-[#FF5F15] text-black px-3 py-1 rounded-sm font-mono text-[10px] uppercase tracking-wider font-bold">Confirm</button>
-                          <button data-testid={`elevate-cancel-button-${u.id}`} onClick={() => setConfirmElevate(null)}
-                            className="text-zinc-400 font-mono text-[10px] uppercase hover:text-white">Cancel</button>
-                        </div>
-                      </div>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 font-mono text-xs text-zinc-300">{u.job_count}</td>
-                  <td className="px-4 py-3 font-mono text-[10px] text-zinc-500">{new Date(u.created_at).toLocaleDateString()}</td>
-                  <td className="px-4 py-3 text-right">
-                    {confirmDelete === u.id ? (
-                      <span className="flex items-center gap-2 justify-end">
-                        <button data-testid={`user-delete-confirm-${u.id}`} onClick={() => remove(u)}
-                          className="bg-[#EF4444] text-white px-3 py-1.5 rounded-sm font-mono text-[10px] uppercase tracking-wider font-bold">Confirm</button>
-                        <button onClick={() => setConfirmDelete(null)} className="text-zinc-400 font-mono text-[10px] uppercase">Cancel</button>
-                      </span>
-                    ) : (
-                      <button data-testid={`user-delete-button-${u.id}`} onClick={() => setConfirmDelete(u.id)} disabled={u.id === me.id}
-                        className="text-zinc-500 hover:text-[#EF4444] p-1.5 transition-colors duration-150 disabled:opacity-30" title="Delete user">
-                        <Trash size={15} />
-                      </button>
-                    )}
-                  </td>
-                </tr>
+                <UserRow key={u.id} u={u} me={me}
+                  elevating={confirmElevate?.id === u.id} deleting={confirmDelete === u.id}
+                  onRoleChange={onRoleChange} onChangeRole={changeRole} onCancelElevate={() => setConfirmElevate(null)}
+                  onRemove={remove} onStartDelete={() => setConfirmDelete(u.id)} onCancelDelete={() => setConfirmDelete(null)} />
               ))}
             </tbody>
           </table>

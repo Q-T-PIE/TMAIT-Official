@@ -13,7 +13,7 @@ export default function TrainingDashboard({ onClose }) {
 
   useEffect(() => {
     api.get("/feedback").then((r) => setItems(r.data)).catch(() => setItems([]));
-  }, []);
+  }, [setItems]);
 
   const counts = { approve: 0, reject: 0, edit: 0 };
   (items || []).forEach((f) => { if (counts[f.action] !== undefined) counts[f.action]++; });

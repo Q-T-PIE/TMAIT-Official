@@ -85,113 +85,136 @@ function TitleBlock({ W, H, titleH, L, job, sheetIndex, sheetCount }) {
   );
 }
 
-export default function SchematicDiagram({ layout, job, svgId = "layout-svg", sheetIndex = 0, sheetCount = 1 }) {
-  const L = layout;
-  if (!L) {
-    return (
-      <div data-testid="layout-missing-state" className="border border-black/10 bg-white rounded-sm p-8 max-w-2xl">
-        <p className="font-heading text-lg font-bold text-[#0A0A0A] mb-2">Layout diagram not available for this plan</p>
-        <p className="text-sm text-zinc-500 font-body">This plan was generated before the TMM layout engine was added. Click <span className="font-mono text-xs uppercase text-[#FF5F15]">Regenerate Plan</span> to produce the schematic traffic control layout.</p>
-      </div>
-    );
-  }
+function SvgDefs() {
+  return (
+    <defs>
+      <pattern id="hatch" patternUnits="userSpaceOnUse" width="8" height="8" patternTransform="rotate(45)">
+        <rect width="8" height="8" fill="#FFF3EA" />
+        <line x1="0" y1="0" x2="0" y2="8" stroke={SIGN_ORANGE} strokeWidth="2" />
+      </pattern>
+      <marker id="arrDown" markerWidth="8" markerHeight="8" refX="4" refY="6" orient="auto-start-reverse">
+        <path d="M1,1 L4,7 L7,1" fill="none" stroke="#111" strokeWidth="1" />
+      </marker>
+      <marker id="arrUp" markerWidth="8" markerHeight="8" refX="4" refY="6" orient="auto">
+        <path d="M1,1 L4,7 L7,1" fill="none" stroke="#111" strokeWidth="1" />
+      </marker>
+    </defs>
+  );
+}
 
-  const {
-    A, B, LM, LD, WA, lanes, twoWay, oppLanes, closedLeft, closedCount, upSigns, downSigns,
-    laneW, roadW, W, H, roadL, roadR, pavL, pavR, top, yLDtop, yWorkTop, yBufTop, yTaperTop,
-    yTaperBot, yBot, titleH, zWork, closEdgeX, signSideDefault, signX, dimX,
-    taperCones, edgeCones, ldCones, workL, workR, zones,
-  } = computeLayoutGeometry(L, job);
+function LaneLine({ x, top, yBot, isCentre }) {
+  if (isCentre) return <line x1={x} y1={top} x2={x} y2={yBot} stroke="#EAB308" strokeWidth="3" />;
+  return <line x1={x} y1={top} x2={x} y2={yBot} stroke="#999" strokeWidth="1.5" strokeDasharray="14 12" />;
+}
+
+function RoadBase({ g }) {
+  const { lanes, twoWay, oppLanes, closedLeft, closedCount, laneW, roadW, roadL, pavL, pavR, top, yBot, zones } = g;
+  return (
+    <g>
+      <rect x={roadL} y={top} width={roadW} height={yBot - top} fill="#E8E8E8" />
+      <rect x={pavL} y={top} width={pavR - pavL} height={yBot - top} fill="#F7F7F7" stroke="#111" strokeWidth="1.5" />
+      {Array.from({ length: lanes - 1 }, (_, i) => {
+        const x = pavL + (i + 1) * laneW;
+        return <LaneLine key={`lane-${x}`} x={x} top={top} yBot={yBot} isCentre={twoWay && i + 1 === oppLanes} />;
+      })}
+      {Array.from({ length: lanes }, (_, i) => {
+        const isClosed = closedLeft ? i < closedCount : i >= lanes - closedCount;
+        if (isClosed) return null;
+        const cx = pavL + i * laneW + laneW / 2;
+        const opposing = twoWay && i < oppLanes;
+        return <LaneArrow key={`arrow-${cx}`} x={cx} y={opposing ? top + 18 : yBot - 45} down={opposing} />;
+      })}
+      {zones.map(([t, y]) => (
+        <text key={t} x={roadL - 24} y={y} fontSize="9" fontFamily="monospace" fill="#888" textAnchor="end" transform={`rotate(-90 ${roadL - 24} ${y})`}>{t}</text>
+      ))}
+    </g>
+  );
+}
+
+function ArrowBoard({ g }) {
+  const { workL, workR, yBufTop, closedLeft } = g;
+  const cx = (workL + workR) / 2;
+  return (
+    <g>
+      <rect x={cx - 16} y={yBufTop - 34} width={32} height={26} fill="#333" stroke="#111" strokeWidth="1" />
+      <path d={`M ${cx - 9} ${yBufTop - 21} h 12 m -5 -5 l 6 5 l -6 5`} stroke="#FDE047" strokeWidth="2" fill="none" transform={closedLeft ? `scale(-1,1) translate(${-(workL + workR)},0)` : undefined} />
+      <text x={cx} y={yBufTop + 4} fontSize="8" fontFamily="monospace" fill="#555" textAnchor="middle">FAB</text>
+    </g>
+  );
+}
+
+function WorkZoneLayer({ g, L }) {
+  const { workL, workR, yWorkTop, zWork, closEdgeX, closedLeft, pavL, top, yTaperBot, taperCones, edgeCones, ldCones } = g;
+  const flaggers = L.tcp_flaggers || 0;
+  return (
+    <g>
+      {taperCones.map((c) => <Cone key={`t-${c.x.toFixed(1)}-${c.y.toFixed(1)}`} {...c} />)}
+      {edgeCones.map((c) => <Cone key={`e-${c.x.toFixed(1)}-${c.y.toFixed(1)}`} {...c} />)}
+      {ldCones.map((c) => <Cone key={`d-${c.x.toFixed(1)}-${c.y.toFixed(1)}`} {...c} />)}
+      <rect x={workL} y={yWorkTop + 8} width={workR - workL} height={zWork - 16} fill="url(#hatch)" stroke={SIGN_ORANGE} strokeWidth="2" />
+      <text x={(workL + workR) / 2} y={yWorkTop + zWork / 2 - 16} fontSize="11" fontFamily="monospace" fontWeight="bold" fill="#B45309" textAnchor="middle" transform={`rotate(-90 ${(workL + workR) / 2} ${yWorkTop + zWork / 2})`}>WORK AREA</text>
+      {L.arrow_board !== false && <ArrowBoard g={g} />}
+      {flaggers >= 1 && <Tcp x={closEdgeX + (closedLeft ? -34 : 20)} y={yTaperBot + 16} />}
+      {flaggers >= 2 && <Tcp x={pavL - 44} y={top + 40} />}
+    </g>
+  );
+}
+
+function SignsLayer({ g }) {
+  const { upSigns, downSigns, signSideDefault, signX, yBot, top } = g;
+  return (
+    <g>
+      {upSigns.map((s, i) => {
+        const side = s.side === "both" ? signSideDefault : (s.side || signSideDefault);
+        return <Sign key={`up-${s.designation}-${i}`} x={signX(side)} y={yBot - 42 - i * 85} sign={s} side={side} />;
+      })}
+      {downSigns.map((s, i) => {
+        const side = s.side || signSideDefault;
+        return <Sign key={`down-${s.designation}-${i}`} x={signX(side)} y={top + 34 + i * 50} sign={s} side={side} />;
+      })}
+    </g>
+  );
+}
+
+function DimsLayer({ g }) {
+  const { A, B, LM, LD, WA, upSigns, dimX, yBot, yLDtop, yWorkTop, yBufTop, yTaperTop, yTaperBot } = g;
+  return (
+    <g>
+      {upSigns.length > 1 && <DimLine x={dimX} y1={yBot - 42 - (upSigns.length - 1) * 85} y2={yBot - 42} label={`A = ${A} m`} />}
+      <DimLine x={dimX} y1={yTaperTop} y2={yTaperBot} label={`LM = ${LM} m`} />
+      <DimLine x={dimX} y1={yBufTop} y2={yTaperTop} label={`B = ${B} m`} />
+      <DimLine x={dimX} y1={yWorkTop} y2={yBufTop} label={`${WA} m`} />
+      <DimLine x={dimX} y1={yLDtop} y2={yWorkTop} label={`LD = ${LD} m`} />
+    </g>
+  );
+}
+
+function MissingLayout() {
+  return (
+    <div data-testid="layout-missing-state" className="border border-black/10 bg-white rounded-sm p-8 max-w-2xl">
+      <p className="font-heading text-lg font-bold text-[#0A0A0A] mb-2">Layout diagram not available for this plan</p>
+      <p className="text-sm text-zinc-500 font-body">This plan was generated before the TMM layout engine was added. Click <span className="font-mono text-xs uppercase text-[#FF5F15]">Regenerate Plan</span> to produce the schematic traffic control layout.</p>
+    </div>
+  );
+}
+
+export default function SchematicDiagram({ layout, job, svgId = "layout-svg", sheetIndex = 0, sheetCount = 1 }) {
+  if (!layout) return <MissingLayout />;
+  const g = computeLayoutGeometry(layout, job);
 
   return (
     <div data-testid="schematic-diagram" className="max-w-4xl">
-      <svg id={svgId} viewBox={`0 0 ${W} ${H}`} width={W} height={H} xmlns="http://www.w3.org/2000/svg" style={{ width: "100%", height: "auto", background: "#fff", border: "1px solid rgba(0,0,0,0.15)" }}>
-        <defs>
-          <pattern id="hatch" patternUnits="userSpaceOnUse" width="8" height="8" patternTransform="rotate(45)">
-            <rect width="8" height="8" fill="#FFF3EA" />
-            <line x1="0" y1="0" x2="0" y2="8" stroke={SIGN_ORANGE} strokeWidth="2" />
-          </pattern>
-          <marker id="arrDown" markerWidth="8" markerHeight="8" refX="4" refY="6" orient="auto-start-reverse">
-            <path d="M1,1 L4,7 L7,1" fill="none" stroke="#111" strokeWidth="1" />
-          </marker>
-          <marker id="arrUp" markerWidth="8" markerHeight="8" refX="4" refY="6" orient="auto">
-            <path d="M1,1 L4,7 L7,1" fill="none" stroke="#111" strokeWidth="1" />
-          </marker>
-        </defs>
-
-        <rect x="0" y="0" width={W} height={H} fill="#fff" />
-
-        {/* road */}
-        <rect x={roadL} y={top} width={roadW} height={yBot - top} fill="#E8E8E8" />
-        <rect x={pavL} y={top} width={pavR - pavL} height={yBot - top} fill="#F7F7F7" stroke="#111" strokeWidth="1.5" />
-        {Array.from({ length: lanes - 1 }, (_, i) => {
-          const x = pavL + (i + 1) * laneW;
-          const isCentre = twoWay && i + 1 === oppLanes;
-          return isCentre
-            ? <line key={`lane-${x}`} x1={x} y1={top} x2={x} y2={yBot} stroke="#EAB308" strokeWidth="3" />
-            : <line key={`lane-${x}`} x1={x} y1={top} x2={x} y2={yBot} stroke="#999" strokeWidth="1.5" strokeDasharray="14 12" />;
-        })}
-
-        {/* lane direction arrows */}
-        {Array.from({ length: lanes }, (_, i) => {
-          const cx = pavL + i * laneW + laneW / 2;
-          const opposing = twoWay && i < oppLanes;
-          const isClosed = closedLeft ? i < closedCount : i >= lanes - closedCount;
-          if (isClosed) return null;
-          return <LaneArrow key={`arrow-${cx}`} x={cx} y={opposing ? top + 18 : yBot - 45} down={opposing} />;
-        })}
-
-        {/* zone labels left */}
-        {zones.map(([t, y]) => (
-          <text key={t} x={roadL - 24} y={y} fontSize="9" fontFamily="monospace" fill="#888" textAnchor="end" transform={`rotate(-90 ${roadL - 24} ${y})`}>{t}</text>
-        ))}
-
-        {/* cones */}
-        {taperCones.map((c) => <Cone key={`t-${c.x.toFixed(1)}-${c.y.toFixed(1)}`} {...c} />)}
-        {edgeCones.map((c) => <Cone key={`e-${c.x.toFixed(1)}-${c.y.toFixed(1)}`} {...c} />)}
-        {ldCones.map((c) => <Cone key={`d-${c.x.toFixed(1)}-${c.y.toFixed(1)}`} {...c} />)}
-
-        {/* work area */}
-        <rect x={workL} y={yWorkTop + 8} width={workR - workL} height={zWork - 16} fill="url(#hatch)" stroke={SIGN_ORANGE} strokeWidth="2" />
-        <text x={(workL + workR) / 2} y={yWorkTop + zWork / 2 - 16} fontSize="11" fontFamily="monospace" fontWeight="bold" fill="#B45309" textAnchor="middle" transform={`rotate(-90 ${(workL + workR) / 2} ${yWorkTop + zWork / 2})`}>WORK AREA</text>
-
-        {/* work vehicle + arrow board */}
-        {L.arrow_board !== false && (
-          <g>
-            <rect x={(workL + workR) / 2 - 16} y={yBufTop - 34} width={32} height={26} fill="#333" stroke="#111" strokeWidth="1" />
-            <path d={`M ${(workL + workR) / 2 - 9} ${yBufTop - 21} h 12 m -5 -5 l 6 5 l -6 5`} stroke="#FDE047" strokeWidth="2" fill="none" transform={closedLeft ? `scale(-1,1) translate(${-(workL + workR)},0)` : undefined} />
-            <text x={(workL + workR) / 2} y={yBufTop + 4} fontSize="8" fontFamily="monospace" fill="#555" textAnchor="middle">FAB</text>
-          </g>
-        )}
-
-        {/* TCPs */}
-        {(L.tcp_flaggers || 0) >= 1 && <Tcp x={closEdgeX + (closedLeft ? -34 : 20)} y={yTaperBot + 16} />}
-        {(L.tcp_flaggers || 0) >= 2 && <Tcp x={pavL - 44} y={top + 40} />}
-
-        {/* upstream signs (farthest first => lowest) */}
-        {upSigns.map((s, i) => {
-          const side = s.side === "both" ? signSideDefault : (s.side || signSideDefault);
-          const y = yBot - 42 - i * 85;
-          return <Sign key={`up-${s.designation}-${i}`} x={signX(side)} y={y} sign={s} side={side} />;
-        })}
-        {/* downstream signs */}
-        {downSigns.map((s, i) => {
-          const side = s.side || signSideDefault;
-          return <Sign key={`down-${s.designation}-${i}`} x={signX(side)} y={top + 34 + i * 50} sign={s} side={side} />;
-        })}
-
-        {/* dimensions */}
-        {upSigns.length > 1 && <DimLine x={dimX} y1={yBot - 42 - (upSigns.length - 1) * 85} y2={yBot - 42} label={`A = ${A} m`} />}
-        <DimLine x={dimX} y1={yTaperTop} y2={yTaperBot} label={`LM = ${LM} m`} />
-        <DimLine x={dimX} y1={yBufTop} y2={yTaperTop} label={`B = ${B} m`} />
-        <DimLine x={dimX} y1={yWorkTop} y2={yBufTop} label={`${WA} m`} />
-        <DimLine x={dimX} y1={yLDtop} y2={yWorkTop} label={`LD = ${LD} m`} />
-
-        {/* legend + title block */}
-        <Legend top={top} />
-        <TitleBlock W={W} H={H} titleH={titleH} L={L} job={job} sheetIndex={sheetIndex} sheetCount={sheetCount} />
+      <svg id={svgId} viewBox={`0 0 ${g.W} ${g.H}`} width={g.W} height={g.H} xmlns="http://www.w3.org/2000/svg" style={{ width: "100%", height: "auto", background: "#fff", border: "1px solid rgba(0,0,0,0.15)" }}>
+        <SvgDefs />
+        <rect x="0" y="0" width={g.W} height={g.H} fill="#fff" />
+        <RoadBase g={g} />
+        <WorkZoneLayer g={g} L={layout} />
+        <SignsLayer g={g} />
+        <DimsLayer g={g} />
+        <Legend top={g.top} />
+        <TitleBlock W={g.W} H={g.H} titleH={g.titleH} L={layout} job={job} sheetIndex={sheetIndex} sheetCount={sheetCount} />
       </svg>
-      {L.notes && <p className="font-mono text-[11px] text-zinc-500 mt-2">NOTE: {L.notes}</p>}
+      {layout.notes && <p className="font-mono text-[11px] text-zinc-500 mt-2">NOTE: {layout.notes}</p>}
     </div>
   );
 }

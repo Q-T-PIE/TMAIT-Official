@@ -116,14 +116,11 @@ def test_existing_job_has_plan(reviewer_client, api_url, existing_job_id):
     r = reviewer_client.get(f"{api_url}/jobs/{existing_job_id}", timeout=15)
     assert r.status_code == 200, r.text
     job = r.json()
-    assert job.get("plan") is not None, "Expected plan on pre-generated job"
-    plan = job["plan"]
-    # Check core plan sections
-    assert "tmm_citations" in plan and len(plan["tmm_citations"]) > 0
-    assert "signage_schedule" in plan and len(plan["signage_schedule"]) > 0
-    assert "setup_steps" in plan and len(plan["setup_steps"]) > 0
-    assert "map_features" in plan and len(plan["map_features"]) > 0
-    assert job.get("sources") and len(job["sources"]) > 0
+    plan = job.get("plan")
+    assert plan is not None, "Expected plan on pre-generated job"
+    for key in ("tmm_citations", "signage_schedule", "setup_steps", "map_features"):
+        assert plan.get(key), f"plan.{key} missing or empty"
+    assert job.get("sources"), "Expected RAG grounding sources"
 
 
 def test_reviewer_edit_plan_persists(reviewer_client, api_url, existing_job_id):

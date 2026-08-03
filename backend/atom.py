@@ -124,24 +124,17 @@ def _parse_plan(text: str, coords: dict) -> dict:
     return plan
 
 
-async def stream_generate(job: dict, model_key: str):
-    provider, model, env_key = MODELS.get(model_key, MODELS["gpt-5.2"])
-    api_key = os.environ[env_key]
-
-    yield {"type": "stage", "stage": "retrieving"}
+async def _retrieve_context(job: dict) -> tuple:
     rag_query = f"{job['works_type']} {job.get('road_type', '')} lane closure speed {job.get('speed_limit', '')} km/h signage traffic control {job.get('traffic_volume', '')} volume"
-    context_chunks = await search_kb(rag_query, k=8)
+    chunks = await search_kb(rag_query, k=8)
     context = "\n\n".join(
-        [f"[{c['doc_title']} — p.{c['page']}]\n{c['text'][:1800]}" for c in context_chunks]
+        [f"[{c['doc_title']} — p.{c['page']}]\n{c['text'][:1800]}" for c in chunks]
     ) or "No TMM excerpts available yet — rely on BC TMM 2020 standards knowledge and state citations carefully."
+    return chunks, context
 
-    yield {"type": "stage", "stage": "geocoding"}
-    coords = await geocode(job["location"])
-    feedback = await get_feedback_examples()
-    attachments_ctx = _attachments_context(job)
-    revision = _revision_context(job)
 
-    prompt = f"""JOB REQUEST:
+def _build_prompt(job: dict, coords: dict, context: str, feedback: str) -> str:
+    return f"""JOB REQUEST:
 - Title: {job['title']}
 - Location: {job['location']} (site coordinates: {coords['lat']}, {coords['lng']})
 - Works/Event type: {job['works_type']}
@@ -154,26 +147,41 @@ async def stream_generate(job: dict, model_key: str):
 - Known hazards: {job.get('hazards', 'None stated')}
 - Additional notes: {job.get('notes', 'None')}
 
-{attachments_ctx}
+{_attachments_context(job)}
 
 TMM 2020 REFERENCE EXCERPTS (retrieved from knowledge base):
 {context}
 
 {feedback}
 
-{revision}
+{_revision_context(job)}
 
 Generate the complete traffic management plan JSON now."""
 
-    yield {"type": "stage", "stage": "drafting"}
+
+def _make_chat(job_id: str, model_key: str) -> LlmChat:
+    provider, model, env_key = MODELS.get(model_key, MODELS["gpt-5.2"])
     chat = LlmChat(
-        api_key=api_key,
-        session_id=f"plan-{job['id']}",
+        api_key=os.environ[env_key],
+        session_id=f"plan-{job_id}",
         system_message=SYSTEM_MESSAGE,
     ).with_model(provider, model)
     if provider == "anthropic":
         chat = chat.with_params(max_tokens=16000)
+    return chat
 
+
+async def stream_generate(job: dict, model_key: str):
+    yield {"type": "stage", "stage": "retrieving"}
+    context_chunks, context = await _retrieve_context(job)
+
+    yield {"type": "stage", "stage": "geocoding"}
+    coords = await geocode(job["location"])
+    feedback = await get_feedback_examples()
+    prompt = _build_prompt(job, coords, context, feedback)
+
+    yield {"type": "stage", "stage": "drafting"}
+    chat = _make_chat(job["id"], model_key)
     text = ""
     async for ev in chat.stream_message(UserMessage(text=prompt)):
         if isinstance(ev, TextDelta):
