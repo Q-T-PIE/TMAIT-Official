@@ -1,12 +1,16 @@
 import { useState } from "react";
-import { FileText, MapTrifold, TrafficCone, PencilSimpleLine } from "@phosphor-icons/react";
+import { FileText, MapTrifold, TrafficCone, PencilSimpleLine, Blueprint } from "@phosphor-icons/react";
 import PlanDocument from "./PlanDocument";
 import TrafficMap from "./TrafficMap";
 import SchematicDiagram from "./SchematicDiagram";
 import ManualEditor from "./ManualEditor";
+import DrawingSheet from "./DrawingSheet";
 
 function buildTabs(hasPlan) {
-  const tabs = [["editor", "Drafting Editor", PencilSimpleLine]];
+  const tabs = [
+    ["editor", "Drafting Editor", PencilSimpleLine],
+    ["drawing", "Drawing Sheet", Blueprint],
+  ];
   if (hasPlan) {
     tabs.push(["plan", "Plan Document", FileText]);
     tabs.push(["layout", "Layout Diagram", TrafficCone]);
@@ -47,6 +51,7 @@ export default function PlanWorkspace({ job, sheets, isReviewer, onSavePlan }) {
       </div>
       <div key={tab} className="animate-fade">
         {tab === "editor" && <ManualEditor job={job} onSavePlan={onSavePlan} />}
+        {tab === "drawing" && <DrawingSheet job={job} />}
         {tab === "plan" && job.plan && <PlanDocument plan={job.plan} editable={isReviewer} onSave={onSavePlan} />}
         {tab === "layout" && job.plan && (
           <div>
