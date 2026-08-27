@@ -4,9 +4,9 @@ import L from "leaflet";
 import {
   ArrowCounterClockwise,
   Copy,
+  CornersOut,
   Crosshair,
   FloppyDisk,
-  FrameCorners,
   MapTrifold,
   Microphone,
   MicrophoneSlash,
@@ -58,8 +58,24 @@ function boundsObject(map) {
 function ViewController({ center, zoom }) {
   const map = useMap();
   useEffect(() => {
-    if (center?.length === 2) map.flyTo(center, zoom || map.getZoom(), { duration: 0.6 });
+    if (!center?.length) return;
+    const current = map.getCenter();
+    const targetZoom = zoom || map.getZoom();
+    const moved = Math.abs(current.lat - center[0]) > 0.0000001 || Math.abs(current.lng - center[1]) > 0.0000001;
+    const zoomed = map.getZoom() !== targetZoom;
+    if (moved || zoomed) map.flyTo(center, targetZoom, { duration: 0.6 });
   }, [center, zoom, map]);
+  return null;
+}
+
+function InitialMapState({ onViewChange }) {
+  const map = useMap();
+  const callbackRef = useRef(onViewChange);
+  useEffect(() => { callbackRef.current = onViewChange; }, [onViewChange]);
+  useEffect(() => {
+    const c = map.getCenter();
+    callbackRef.current([c.lat, c.lng], map.getZoom(), boundsObject(map));
+  }, [map]);
   return null;
 }
 
@@ -251,6 +267,10 @@ export default function ManualEditor({ job, onSavePlan }) {
   };
 
   const lockPlanView = () => {
+    if (!viewBounds) {
+      toast.error("Map frame is not ready yet. Pan or zoom the map once, then lock the plan view.");
+      return;
+    }
     const frame = {
       center,
       zoom,
@@ -294,7 +314,7 @@ export default function ManualEditor({ job, onSavePlan }) {
       setSavedSessions((prev) => [...prev, finished]);
       setSession(emptyTrainingSession());
       setTraining(false);
-      toast.success("Training session captured");
+      toast.success("Training session captured — save the draft to store it");
     } else {
       setSession(emptyTrainingSession());
       setTraining(true);
@@ -352,7 +372,7 @@ export default function ManualEditor({ job, onSavePlan }) {
             <MapTrifold size={15} className="inline mr-1" />{basemap === "satellite" ? "Satellite" : "Street"}
           </button>
           <button onClick={lockPlanView} className={`px-3 py-2 border rounded-sm text-xs font-mono uppercase ${printFrame ? "border-[#6B21A8] text-[#6B21A8]" : "border-black/15 hover:border-[#6B21A8]"}`}>
-            <FrameCorners size={15} className="inline mr-1" />{printFrame ? "Plan View Locked" : "Lock Plan View"}
+            <CornersOut size={15} className="inline mr-1" />{printFrame ? "Plan View Locked" : "Lock Plan View"}
           </button>
           <button onClick={save} className="px-3 py-2 bg-[#0A0A0A] text-white rounded-sm text-xs font-mono uppercase hover:bg-[#6B21A8]">
             <FloppyDisk size={15} className="inline mr-1" />Save Draft
@@ -367,6 +387,7 @@ export default function ManualEditor({ job, onSavePlan }) {
               <TileLayer attribution='&copy; OpenStreetMap contributors' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
             )}
             <ViewController center={center} zoom={zoom} />
+            <InitialMapState onViewChange={handleViewChange} />
             <MapEvents activeTool={activeTool} onPlace={place} onViewChange={handleViewChange} />
             {objects.filter((o) => !o.hidden).map((o) => (
               <Marker key={o.id} position={[o.lat, o.lng]} icon={makeIcon(o, selectedId === o.id)} draggable={!o.locked}
