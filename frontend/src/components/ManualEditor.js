@@ -6,6 +6,7 @@ import {
   Copy,
   Crosshair,
   FloppyDisk,
+  FrameCorners,
   MapTrifold,
   Microphone,
   MicrophoneSlash,
@@ -35,12 +36,23 @@ function makeIcon(item, selected = false) {
   const bg = item.kind === "sign" ? "#FF5F15" : item.kind === "tcp" ? "#2563EB" : item.kind === "cone" ? "#F59E0B" : "#FFFFFF";
   const text = item.kind === "sign" ? item.key : item.glyph;
   const rotate = item.rotation || 0;
+  const width = item.kind === "sign" ? 46 : 30;
   return L.divIcon({
     className: "",
-    html: `<div style="transform:rotate(${rotate}deg);transform-origin:center;width:${item.kind === "sign" ? 46 : 30}px;height:${item.kind === "sign" ? 30 : 30}px;border:3px solid ${border};background:${bg};color:#111;display:flex;align-items:center;justify-content:center;font:700 ${item.kind === "sign" ? 8 : 13}px monospace;box-shadow:0 2px 8px rgba(0,0,0,.35);border-radius:3px">${text}</div>`,
-    iconSize: item.kind === "sign" ? [46, 30] : [30, 30],
-    iconAnchor: item.kind === "sign" ? [23, 15] : [15, 15],
+    html: `<div style="transform:rotate(${rotate}deg);transform-origin:center;width:${width}px;height:30px;border:3px solid ${border};background:${bg};color:#111;display:flex;align-items:center;justify-content:center;font:700 ${item.kind === "sign" ? 8 : 13}px monospace;box-shadow:0 2px 8px rgba(0,0,0,.35);border-radius:3px">${text}</div>`,
+    iconSize: [width, 30],
+    iconAnchor: [width / 2, 15],
   });
+}
+
+function boundsObject(map) {
+  const b = map.getBounds();
+  return {
+    north: b.getNorth(),
+    south: b.getSouth(),
+    east: b.getEast(),
+    west: b.getWest(),
+  };
 }
 
 function ViewController({ center, zoom }) {
@@ -59,12 +71,12 @@ function MapEvents({ activeTool, onPlace, onViewChange }) {
     moveend(e) {
       const map = e.target;
       const c = map.getCenter();
-      onViewChange([c.lat, c.lng], map.getZoom());
+      onViewChange([c.lat, c.lng], map.getZoom(), boundsObject(map));
     },
     zoomend(e) {
       const map = e.target;
       const c = map.getCenter();
-      onViewChange([c.lat, c.lng], map.getZoom());
+      onViewChange([c.lat, c.lng], map.getZoom(), boundsObject(map));
     },
   });
   return null;
@@ -92,7 +104,7 @@ function useSpeechTraining(active, onPhrase) {
     };
     recognition.onend = () => {
       if (recognitionRef.current?.__keepListening) {
-        try { recognition.start(); } catch (e) { /* browser may already be restarting */ }
+        try { recognition.start(); } catch (e) { /* browser restart overlap */ }
       }
     };
     recognitionRef.current = recognition;
@@ -111,7 +123,7 @@ function useSpeechTraining(active, onPhrase) {
       if (active) recognition.start();
       else recognition.stop();
     } catch (e) {
-      // Chrome throws when start/stop overlaps; onend handles the next state.
+      // Chrome can throw while a previous start/stop is still settling.
     }
   }, [active]);
 
@@ -128,11 +140,21 @@ function emptyTrainingSession() {
   };
 }
 
+function initialViewport(existing, job) {
+  if (existing?.viewport) return existing.viewport;
+  const center = existing?.center || (job?.plan?.map_features?.center
+    ? [job.plan.map_features.center.lat, job.plan.map_features.center.lng]
+    : BC_CENTER);
+  return { center, zoom: existing?.zoom || job?.plan?.map_features?.zoom || 15, bounds: existing?.print_frame?.bounds || null };
+}
+
 export default function ManualEditor({ job, onSavePlan }) {
   const existing = job?.plan?.editor_state || {};
-  const existingCenter = existing.center || (job?.plan?.map_features?.center ? [job.plan.map_features.center.lat, job.plan.map_features.center.lng] : BC_CENTER);
-  const [center, setCenter] = useState(existingCenter);
-  const [zoom, setZoom] = useState(existing.zoom || job?.plan?.map_features?.zoom || 15);
+  const initial = initialViewport(existing, job);
+  const [center, setCenter] = useState(initial.center);
+  const [zoom, setZoom] = useState(initial.zoom);
+  const [viewBounds, setViewBounds] = useState(initial.bounds);
+  const [printFrame, setPrintFrame] = useState(existing.print_frame || null);
   const [basemap, setBasemap] = useState(existing.basemap || "satellite");
   const [objects, setObjects] = useState(existing.objects || []);
   const [activeKey, setActiveKey] = useState("select");
@@ -195,7 +217,12 @@ export default function ManualEditor({ job, onSavePlan }) {
   const duplicateSelected = () => {
     const current = objects.find((o) => o.id === selectedId);
     if (!current) return;
-    const copy = { ...current, id: `obj-${Date.now()}-${Math.random().toString(16).slice(2)}`, lat: current.lat + 0.00006, lng: current.lng + 0.00006 };
+    const copy = {
+      ...current,
+      id: `obj-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      lat: current.lat + 0.00006,
+      lng: current.lng + 0.00006,
+    };
     setObjects((prev) => [...prev, copy]);
     setSelectedId(copy.id);
     logAction("duplicate", { object: { key: copy.key, label: copy.label } });
@@ -216,6 +243,26 @@ export default function ManualEditor({ job, onSavePlan }) {
 
   const selected = objects.find((o) => o.id === selectedId) || null;
 
+  const handleViewChange = (nextCenter, nextZoom, bounds) => {
+    setCenter(nextCenter);
+    setZoom(nextZoom);
+    setViewBounds(bounds);
+    logAction("map_view", { center: nextCenter, zoom: nextZoom, bounds });
+  };
+
+  const lockPlanView = () => {
+    const frame = {
+      center,
+      zoom,
+      bounds: viewBounds,
+      basemap,
+      captured_at: new Date().toISOString(),
+    };
+    setPrintFrame(frame);
+    logAction("lock_plan_view", { frame });
+    toast.success("Plan map view locked for training");
+  };
+
   const locate = async () => {
     if (!query.trim()) return;
     setSearching(true);
@@ -227,12 +274,18 @@ export default function ManualEditor({ job, onSavePlan }) {
       const next = [Number(data[0].lat), Number(data[0].lon)];
       setCenter(next);
       setZoom(18);
-      logAction("locate", { query, center: next });
+      logAction("locate", { query, center: next, zoom: 18 });
     } catch (e) {
       toast.error("Could not find that location");
     } finally {
       setSearching(false);
     }
+  };
+
+  const toggleBasemap = () => {
+    const next = basemap === "satellite" ? "street" : "satellite";
+    setBasemap(next);
+    logAction("basemap", { value: next });
   };
 
   const toggleTraining = () => {
@@ -260,6 +313,8 @@ export default function ManualEditor({ job, onSavePlan }) {
         version: 1,
         center,
         zoom,
+        viewport: { center, zoom, bounds: viewBounds },
+        print_frame: printFrame,
         basemap,
         objects,
         training_sessions: sessions,
@@ -285,17 +340,19 @@ export default function ManualEditor({ job, onSavePlan }) {
       </aside>
 
       <section className="min-w-0 flex flex-col">
-        <div className="flex items-center gap-2 p-3 border-b border-black/10 bg-white">
-          <div className="flex flex-1 gap-2">
+        <div className="flex flex-wrap items-center gap-2 p-3 border-b border-black/10 bg-white">
+          <div className="flex min-w-[300px] flex-1 gap-2">
             <input value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={(e) => e.key === "Enter" && locate()}
               className="flex-1 border border-black/15 rounded-sm px-3 py-2 text-sm" placeholder="Search job location" />
             <button onClick={locate} disabled={searching} className="px-3 py-2 border border-black/15 rounded-sm text-xs font-mono uppercase hover:border-[#6B21A8]">
               <Crosshair size={15} className="inline mr-1" />{searching ? "Finding" : "Locate"}
             </button>
           </div>
-          <button onClick={() => setBasemap((b) => b === "satellite" ? "street" : "satellite")}
-            className="px-3 py-2 border border-black/15 rounded-sm text-xs font-mono uppercase hover:border-[#6B21A8]">
+          <button onClick={toggleBasemap} className="px-3 py-2 border border-black/15 rounded-sm text-xs font-mono uppercase hover:border-[#6B21A8]">
             <MapTrifold size={15} className="inline mr-1" />{basemap === "satellite" ? "Satellite" : "Street"}
+          </button>
+          <button onClick={lockPlanView} className={`px-3 py-2 border rounded-sm text-xs font-mono uppercase ${printFrame ? "border-[#6B21A8] text-[#6B21A8]" : "border-black/15 hover:border-[#6B21A8]"}`}>
+            <FrameCorners size={15} className="inline mr-1" />{printFrame ? "Plan View Locked" : "Lock Plan View"}
           </button>
           <button onClick={save} className="px-3 py-2 bg-[#0A0A0A] text-white rounded-sm text-xs font-mono uppercase hover:bg-[#6B21A8]">
             <FloppyDisk size={15} className="inline mr-1" />Save Draft
@@ -310,7 +367,7 @@ export default function ManualEditor({ job, onSavePlan }) {
               <TileLayer attribution='&copy; OpenStreetMap contributors' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
             )}
             <ViewController center={center} zoom={zoom} />
-            <MapEvents activeTool={activeTool} onPlace={place} onViewChange={(c, z) => { setCenter(c); setZoom(z); }} />
+            <MapEvents activeTool={activeTool} onPlace={place} onViewChange={handleViewChange} />
             {objects.filter((o) => !o.hidden).map((o) => (
               <Marker key={o.id} position={[o.lat, o.lng]} icon={makeIcon(o, selectedId === o.id)} draggable={!o.locked}
                 eventHandlers={{
@@ -334,7 +391,7 @@ export default function ManualEditor({ job, onSavePlan }) {
           {training ? <MicrophoneSlash size={16} /> : <Microphone size={16} />} {training ? "Finish Training" : "Start ATOM Training"}
         </button>
         <p className="text-[11px] text-zinc-500 mt-2 leading-relaxed">
-          {speechSupported ? "A.T.O.M records editor actions and transcribes your explanation while you work." : "This browser does not expose live speech recognition. Editor actions will still be recorded."}
+          {speechSupported ? "A.T.O.M records editor actions, map framing and your spoken explanation while you work." : "This browser does not expose live speech recognition. Editor actions and map framing will still be recorded."}
         </p>
 
         {training && (
@@ -346,6 +403,18 @@ export default function ManualEditor({ job, onSavePlan }) {
             </div>
           </div>
         )}
+
+        <div className="mt-5">
+          <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-zinc-500 mb-2">Plan Map Frame</p>
+          <div className="bg-white border border-black/10 rounded-sm p-3 text-[11px] text-zinc-600">
+            {printFrame ? (
+              <>
+                <p className="font-mono font-bold text-[#6B21A8]">LOCKED AT ZOOM {printFrame.zoom}</p>
+                <p className="mt-1">The chosen map view is saved with this training example.</p>
+              </>
+            ) : <p>Pan and zoom until the plan image is right, explain what must be visible, then press <b>Lock Plan View</b>.</p>}
+          </div>
+        </div>
 
         <div className="mt-5">
           <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-zinc-500 mb-2">Selected Object</p>
