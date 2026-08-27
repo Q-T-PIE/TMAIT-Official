@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { FileText, MapTrifold, TrafficCone, PencilSimpleLine, Blueprint } from "@phosphor-icons/react";
+import { FileText, MapTrifold, TrafficCone, PencilSimpleLine, FilePdf } from "@phosphor-icons/react";
 import PlanDocument from "./PlanDocument";
 import TrafficMap from "./TrafficMap";
 import SchematicDiagram from "./SchematicDiagram";
@@ -9,7 +9,7 @@ import DrawingSheet from "./DrawingSheet";
 function buildTabs(hasPlan) {
   const tabs = [
     ["editor", "Drafting Editor", PencilSimpleLine],
-    ["drawing", "Drawing Sheet", Blueprint],
+    ["drawing", "Drawing Sheet", FilePdf],
   ];
   if (hasPlan) {
     tabs.push(["plan", "Plan Document", FileText]);
