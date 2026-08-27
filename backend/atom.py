@@ -15,6 +15,8 @@ MODELS = {
 
 SYSTEM_MESSAGE = """You are A.T.O.M (Automated Traffic Operation Manager), an expert traffic management planner for British Columbia, Canada. You generate structured, standards-compliant traffic management plans strictly grounded in the BC Ministry of Transportation and Infrastructure's 2020 Traffic Management Manual for Work on Roadways (TMM 2020).
 
+You may receive MANUAL DRAFTING TRAINING captured while an expert builds real plans. Learn the expert's workflow, map-framing choices, sequencing, placement rationale, and drafting preferences from those examples. Manual training is operational guidance; BC TMM requirements remain authoritative if there is any conflict.
+
 You MUST respond with ONLY a valid JSON object (no markdown fences, no commentary) matching exactly this schema:
 {
   "location_summary": "string - concise description of the site and its traffic context",
@@ -93,6 +95,43 @@ async def get_feedback_examples(limit: int = 3) -> str:
     return "\n".join(lines)
 
 
+def _compact_training_session(session: dict) -> str:
+    timeline = []
+    for action in (session.get("actions") or [])[-80:]:
+        timeline.append((action.get("at", ""), "ACTION", {k: v for k, v in action.items() if k != "at"}))
+    for note in (session.get("transcript") or [])[-50:]:
+        timeline.append((note.get("at", ""), "SPOKEN", note.get("text", "")))
+    timeline.sort(key=lambda x: x[0])
+    return "\n".join(f"  {kind}: {json.dumps(value, ensure_ascii=False) if kind == 'ACTION' else value}" for _, kind, value in timeline)
+
+
+async def get_manual_training_examples(limit: int = 3) -> str:
+    query = {"plan.editor_state.training_sessions.0": {"$exists": True}}
+    projection = {"_id": 0, "title": 1, "location": 1, "works_type": 1, "speed_limit": 1, "plan.editor_state": 1}
+    jobs = await db.jobs.find(query, projection).sort("updated_at", -1).to_list(limit)
+    if not jobs:
+        return ""
+    blocks = [
+        "MANUAL DRAFTING TRAINING FROM THE EXPERT USER:",
+        "Use these examples to learn drafting workflow and visual judgment. TMM requirements override any conflicting preference.",
+    ]
+    for item in reversed(jobs):
+        state = (item.get("plan") or {}).get("editor_state") or {}
+        objects = state.get("objects") or []
+        frame = state.get("print_frame")
+        sessions = state.get("training_sessions") or []
+        blocks.append(f"\n--- Training plan: {item.get('title', '')} | {item.get('location', '')} | {item.get('works_type', '')} | {item.get('speed_limit', '')} km/h ---")
+        if frame:
+            blocks.append(f"Chosen final map frame: {json.dumps(frame, ensure_ascii=False)}")
+        if objects:
+            summary = [{"key": o.get("key"), "label": o.get("label"), "lat": o.get("lat"), "lng": o.get("lng"), "rotation": o.get("rotation", 0)} for o in objects if not o.get("hidden")]
+            blocks.append(f"Final placed objects: {json.dumps(summary[:80], ensure_ascii=False)}")
+        if sessions:
+            blocks.append("Expert action + explanation timeline:")
+            blocks.append(_compact_training_session(sessions[-1]))
+    return "\n".join(blocks)[:14000]
+
+
 def _attachments_context(job: dict) -> str:
     lines = []
     for a in (job.get("attachments") or []):
@@ -133,7 +172,7 @@ async def _retrieve_context(job: dict) -> tuple:
     return chunks, context
 
 
-def _build_prompt(job: dict, coords: dict, context: str, feedback: str) -> str:
+def _build_prompt(job: dict, coords: dict, context: str, feedback: str, manual_training: str) -> str:
     return f"""JOB REQUEST:
 - Title: {job['title']}
 - Location: {job['location']} (site coordinates: {coords['lat']}, {coords['lng']})
@@ -153,6 +192,8 @@ TMM 2020 REFERENCE EXCERPTS (retrieved from knowledge base):
 {context}
 
 {feedback}
+
+{manual_training}
 
 {_revision_context(job)}
 
@@ -178,7 +219,8 @@ async def stream_generate(job: dict, model_key: str):
     yield {"type": "stage", "stage": "geocoding"}
     coords = await geocode(job["location"])
     feedback = await get_feedback_examples()
-    prompt = _build_prompt(job, coords, context, feedback)
+    manual_training = await get_manual_training_examples()
+    prompt = _build_prompt(job, coords, context, feedback, manual_training)
 
     yield {"type": "stage", "stage": "drafting"}
     chat = _make_chat(job["id"], model_key)
@@ -191,6 +233,9 @@ async def stream_generate(job: dict, model_key: str):
             break
 
     plan = _parse_plan(text, coords)
+    previous_editor_state = ((job.get("plan") or {}).get("editor_state"))
+    if previous_editor_state:
+        plan["editor_state"] = previous_editor_state
     sources = [{"doc_title": c["doc_title"], "page": c["page"], "score": round(c["score"], 3)} for c in context_chunks]
     yield {"type": "result", "plan": plan, "sources": sources, "model_used": model_key}
 
